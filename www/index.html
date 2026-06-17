@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel Core | Live Market Monitor</title>
+    <style>
+        :root {
+            --bg-color: #0a0e17;
+            --panel-bg: #111827;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent-blue: #3b82f6;
+            --alert-red: #ef4444;
+            --safe-green: #10b981;
+            --border: #1e293b;
+        }
+        body {
+            margin: 0; padding: 20px; font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color); color: var(--text-main);
+        }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;
+        }
+        .header h1 { margin: 0; font-size: 1.5rem; color: var(--accent-blue); text-transform: uppercase; }
+        .status-indicator { display: flex; align-items: center; gap: 8px; font-weight: bold; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background-color: var(--safe-green); box-shadow: 0 0 8px var(--safe-green); }
+        .dot.pulse { animation: pulse 1.5s infinite; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .card { background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; border-radius: 6px; }
+        .card-title { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 10px; text-transform: uppercase; }
+        .card-value { font-size: 1.8rem; font-weight: bold; }
+        
+        .terminal { margin-top: 20px; background: #000; padding: 15px; border: 1px solid var(--border); height: 200px; overflow-y: auto; font-size: 0.9rem; }
+        .log-entry { margin-bottom: 5px; }
+        .log-time { color: var(--text-muted); margin-right: 10px; }
+        .log-alert { color: var(--alert-red); font-weight: bold; }
+
+        .critical { color: var(--alert-red); }
+        .safe { color: var(--safe-green); }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Sentinel :: HFT Analysis Engine</h1>
+        <div class="status-indicator">
+            <span class="dot pulse" id="sys-dot"></span>
+            <span id="sys-status">SYSTEM ONLINE (WSS ACTIVE)</span>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-title">Live VWAP (Volume Weighted)</div>
+            <div class="card-value" id="val-vwap">Loading...</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Order Flow Imbalance (OFI)</div>
+            <div class="card-value" id="val-ofi">Loading...</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Z-Score Anomaly (Sigma)</div>
+            <div class="card-value" id="val-zscore">Loading...</div>
+        </div>
+        <div class="card" id="card-risk" style="border-color: var(--safe-green);">
+            <div class="card-title">Market Risk Level</div>
+            <div class="card-value safe" id="val-risk">SAFE</div>
+        </div>
+    </div>
+
+    <div class="terminal" id="terminal">
+        <div class="log-entry"><span class="log-time">00:00:00</span> [SYSTEM] UI Initialized. Awaiting core engine data...</div>
+    </div>
+
+    <script>
+        function addLog(message, isAlert = false) {
+            const terminal = document.getElementById('terminal');
+            const time = new Date().toLocaleTimeString();
+            const logClass = isAlert ? 'log-entry log-alert' : 'log-entry';
+            terminal.innerHTML += `<div class="${logClass}"><span class="log-time">${time}</span> ${message}</div>`;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // В реальном проекте здесь будет WebSocket подключение к вашему C++ серверу.
+        // Для демонстрации работы интерфейса мы имитируем входящий поток данных (Mock Data Stream).
+        setInterval(() => {
+            const vwap = (65000 + (Math.random() * 200 - 100)).toFixed(2);
+            const ofi = (Math.random() * 2 - 1).toFixed(3); // -1.0 to 1.0
+            const zScore = (Math.random() * 4).toFixed(2);
+            
+            document.getElementById('val-vwap').innerText = `$${vwap}`;
+            
+            const ofiEl = document.getElementById('val-ofi');
+            ofiEl.innerText = ofi;
+            ofiEl.className = ofi < 0 ? 'card-value critical' : 'card-value safe';
+
+            const zEl = document.getElementById('val-zscore');
+            zEl.innerText = zScore;
+            
+            const riskCard = document.getElementById('card-risk');
+            const riskVal = document.getElementById('val-risk');
+
+            if (zScore > 3.0) {
+                zEl.className = 'card-value critical';
+                riskVal.innerText = 'CRITICAL_MANIPULATION';
+                riskVal.className = 'card-value critical';
+                riskCard.style.borderColor = 'var(--alert-red)';
+                addLog(`[ALERT] Whale volume detected! Z-Score: ${zScore}. Intervention likely.`, true);
+            } else {
+                zEl.className = 'card-value';
+                riskVal.innerText = 'SAFE';
+                riskVal.className = 'card-value safe';
+                riskCard.style.borderColor = 'var(--safe-green)';
+            }
+
+        }, 1500); // Обновление каждые 1.5 секунды
+    </script>
+</body>
+</html>
