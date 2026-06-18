@@ -186,25 +186,16 @@ int main(int argc, char** argv) {
     });
 
     // ---- Publisher sink: cloud (Firebase RTDB) if configured, else local file ----
-    // Reads config from environment variables so the write secret never has
-    // to live in source code or get committed to a (possibly public) repo:
-    //   FIREBASE_DB_HOST   e.g. "your-project-default-rtdb.firebaseio.com"
-    //   FIREBASE_AUTH_SECRET   your Firebase legacy Database Secret
-    //   FIREBASE_DB_PATH   optional, defaults to "/smart_money.json"
+    // Only one env var needed now - no secret required since DB rules allow open writes:
+    //   FIREBASE_DB_HOST   e.g. "sentinel-btc-default-rtdb.firebaseio.com"
     std::optional<CloudPublisher> cloud;
     if (auto host = env("FIREBASE_DB_HOST")) {
         CloudPublisher::Config cloud_cfg;
         cloud_cfg.host = *host;
         cloud_cfg.path = env("FIREBASE_DB_PATH").value_or("/smart_money.json");
-        cloud_cfg.auth_secret = env("FIREBASE_AUTH_SECRET").value_or("");
-        if (cloud_cfg.auth_secret.empty()) {
-            std::cerr << "[Sentinel_Main] FIREBASE_DB_HOST is set but FIREBASE_AUTH_SECRET "
-                         "is missing - refusing to push unauthenticated. Falling back to "
-                         "local file output.\n";
-        } else {
-            cloud.emplace(std::move(cloud_cfg));
-            std::cout << "[Sentinel_Main] publishing to Firebase RTDB at " << *host << "\n";
-        }
+        cloud_cfg.auth_secret = ""; // not needed with open write rules
+        cloud.emplace(std::move(cloud_cfg));
+        std::cout << "[Sentinel_Main] publishing to Firebase RTDB at " << *host << "\n";
     }
 
     const std::filesystem::path out_path(output_path);
