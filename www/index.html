@@ -397,10 +397,29 @@
   <span class="diag" id="diag">ticks: 0 · latency p99: 0.0 µs · dropped: 0</span>
 </footer>
 
-<script>
-(function () {
-  const DATA_URL = 'smart_money.json';
-  const POLL_MS = 1000;
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  // ---------------------------------------------------------------------
+  // Firebase config — fill these in from:
+  // Firebase Console > Project settings > General > "Your apps" > SDK setup
+  //
+  // These values are NOT secret. They identify the project; they do not
+  // grant access. Access is controlled by Realtime Database Rules (set
+  // read: true / write: false there, since writes only ever come from the
+  // C++ core using a separate, never-public Database Secret). Safe to
+  // commit this block to a public GitHub Pages repo.
+  // ---------------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT_ID",
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
   const chartEl = document.getElementById('chart');
   const chart = LightweightCharts.createChart(chartEl, {
@@ -431,13 +450,20 @@
     return '$' + v.toFixed(0);
   };
 
-  function setStatus(state) {
+  // state: 'LIVE' | 'CONNECTING' | 'STALE' | 'OFFLINE'
+  function setStatus(state, label) {
     const el = document.getElementById('status');
     const text = document.getElementById('status-text');
     el.classList.remove('live', 'reconnecting');
-    if (state === 'LIVE') { el.classList.add('live'); text.textContent = 'LIVE'; }
-    else if (state === 'RECONNECTING' || state === 'CONNECTING') { el.classList.add('reconnecting'); text.textContent = state; }
-    else { text.textContent = 'OFFLINE'; }
+    if (state === 'LIVE') {
+      el.classList.add('live');
+      text.textContent = label || 'LIVE';
+    } else if (state === 'CONNECTING' || state === 'STALE') {
+      el.classList.add('reconnecting');
+      text.textContent = label || state;
+    } else {
+      text.textContent = label || 'OFFLINE';
+    }
   }
 
   function setNeedle(score, direction) {
@@ -499,10 +525,13 @@
     document.getElementById('target-up').textContent = d.targets ? fmtUsd(d.targets.up) : '—';
     document.getElementById('target-down').textContent = d.targets ? fmtUsd(d.targets.down) : '—';
 
-    setStatus(d.connection_state);
-
+    // d.connection_state here is the CORE's link to the *exchange*
+    // (Binance), distinct from this page's link to Firebase, which the
+    // status pill in the header now reflects. Surface it in the footer
+    // diagnostics line instead so both are visible without conflating them.
     document.getElementById('diag').textContent =
-      `ticks: ${d.diagnostics?.ticks_processed ?? 0} · latency p99: ${(d.diagnostics?.latency_p99_us ?? 0).toFixed(1)} µs · dropped: ${d.ring_buffer_dropped ?? 0}`;
+      `exchange: ${d.connection_state ?? '—'} · ticks: ${d.diagnostics?.ticks_processed ?? 0} · ` +
+      `latency p99: ${(d.diagnostics?.latency_p99_us ?? 0).toFixed(1)} µs · dropped: ${d.ring_buffer_dropped ?? 0}`;
 
     if (d.timestamp_ms && d.timestamp_ms !== lastTimestampMs && d.last_price) {
       lastTimestampMs = d.timestamp_ms;
@@ -512,22 +541,49 @@
     }
   }
 
-  async function poll() {
-    try {
-      const res = await fetch(DATA_URL, { cache: 'no-store' });
-      if (!res.ok) throw new Error('not ready');
-      const data = await res.json();
-      applySnapshot(data);
-    } catch (e) {
-      setStatus('OFFLINE');
-      document.getElementById('status-text').textContent = 'WAITING FOR CORE';
-    } finally {
-      setTimeout(poll, POLL_MS);
+  // ---------------------------------------------------------------------
+  // Live data: no polling, no smart_money.json on disk. The C++ core PUTs
+  // its JSON snapshot straight into Firebase RTDB; onValue() fires here the
+  // instant that happens, over the same websocket Firebase already keeps
+  // open to the page.
+  // ---------------------------------------------------------------------
+  let firebaseConnected = false;
+  let lastDataAt = 0;
+  const STALE_AFTER_MS = 5000; // if Firebase is connected but no fresh data in 5s, the core is probably down
+
+  function refreshStatus() {
+    if (!firebaseConnected) {
+      setStatus('CONNECTING', 'CONNECTING...');
+      return;
     }
+    if (lastDataAt === 0) {
+      setStatus('CONNECTING', 'WAITING FOR CORE...');
+      return;
+    }
+    if (Date.now() - lastDataAt > STALE_AFTER_MS) {
+      setStatus('STALE', 'NO SIGNAL FROM CORE');
+      return;
+    }
+    setStatus('LIVE');
   }
 
-  poll();
-})();
+  // Firebase's own special path that reports this client's actual socket
+  // state - the correct way to know "are we connected", rather than
+  // guessing from data arrival alone.
+  onValue(ref(db, '.info/connected'), (snap) => {
+    firebaseConnected = snap.val() === true;
+    refreshStatus();
+  });
+
+  onValue(ref(db, 'smart_money'), (snap) => {
+    if (!snap.exists()) return;
+    lastDataAt = Date.now();
+    applySnapshot(snap.val());
+    refreshStatus();
+  });
+
+  setInterval(refreshStatus, 1000);
+  refreshStatus();
 </script>
 
 </body>
