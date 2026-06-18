@@ -1,54 +1,534 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Sentinel | Smart Money Flow</title>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    <style>
-        body { margin: 0; background: #0a0e17; color: #fff; font-family: sans-serif; display: flex; height: 100vh; }
-        #sidebar { width: 350px; border-right: 1px solid #333; padding: 15px; overflow-y: auto; }
-        #chart-container { flex-grow: 1; padding: 15px; }
-        .log-item { border-bottom: 1px solid #222; padding: 8px 0; font-size: 12px; }
-        .inflow { color: #10b981; } .outflow { color: #ef4444; }
-        .stat-box { background: #161b22; padding: 10px; margin-bottom: 10px; border-radius: 4px; }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SENTINEL — BTC Smart Money Flow Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root {
+    --ink: #0A0C10;
+    --panel: #12151B;
+    --panel-raised: #161A21;
+    --hairline: #232830;
+    --text: #E7E9EC;
+    --text-muted: #888F99;
+    --text-faint: #565C66;
+    --bullish: #3ECF8E;
+    --bullish-dim: #1E4B3A;
+    --bearish: #FF5C72;
+    --bearish-dim: #4B232C;
+    --amber: #E8A33D;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- Top bar ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--hairline);
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .brand .mark {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.12em;
+    color: var(--amber);
+  }
+
+  .brand .sub {
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+  }
+
+  .price-block {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+
+  .price-block .pair {
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+  }
+
+  .price-block .price {
+    font-size: 30px;
+    font-weight: 600;
+    font-feature-settings: "tnum";
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  .status .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-faint);
+    box-shadow: 0 0 0 0 transparent;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+
+  .status.live .dot {
+    background: var(--bullish);
+    box-shadow: 0 0 8px 1px rgba(62, 207, 142, 0.55);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .status.reconnecting .dot {
+    background: var(--amber);
+    box-shadow: 0 0 8px 1px rgba(232, 163, 61, 0.5);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status.live .dot { animation: none; }
+  }
+
+  /* ---------- Layout ---------- */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    padding: 16px 22px;
+  }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+    margin: 0 0 12px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .panel-title .value {
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0;
+  }
+
+  #chart-panel { display: flex; flex-direction: column; min-height: 420px; }
+  #chart { flex: 1; min-height: 380px; }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 2px; display: inline-block; }
+
+  .sidebar { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ---------- Flow Vector Needle (signature element) ---------- */
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; }
+
+  .gauge {
+    position: relative;
+    width: 260px;
+    height: 150px;
+  }
+
+  .gauge svg { width: 100%; height: 100%; overflow: visible; }
+
+  .gauge-arc-bg { fill: none; stroke: var(--hairline); stroke-width: 10; }
+
+  .gauge-tick { stroke: var(--text-faint); stroke-width: 1.5; }
+  .gauge-label {
+    fill: var(--text-faint);
+    font-size: 9px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.08em;
+  }
+
+  .needle {
+    stroke: var(--amber);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transform-origin: 130px 130px;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    filter: drop-shadow(0 0 4px rgba(232, 163, 61, 0.55));
+  }
+  .needle.bullish { stroke: var(--bullish); filter: drop-shadow(0 0 5px rgba(62, 207, 142, 0.6)); }
+  .needle.bearish { stroke: var(--bearish); filter: drop-shadow(0 0 5px rgba(255, 92, 114, 0.6)); }
+
+  .needle-echo {
+    stroke: var(--amber);
+    stroke-width: 2;
+    stroke-linecap: round;
+    transform-origin: 130px 130px;
+    opacity: 0.18;
+    transition: transform 1.4s ease-out, opacity 1.4s ease-out;
+  }
+  .needle-echo.bullish { stroke: var(--bullish); }
+  .needle-echo.bearish { stroke: var(--bearish); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .needle, .needle-echo { transition: none; }
+  }
+
+  .gauge-hub { fill: var(--panel-raised); stroke: var(--hairline); stroke-width: 1; }
+
+  .gauge-readout { text-align: center; margin-top: 4px; }
+  .gauge-direction {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .gauge-direction.bullish { color: var(--bullish); }
+  .gauge-direction.bearish { color: var(--bearish); }
+  .gauge-direction.neutral { color: var(--text-muted); }
+
+  .gauge-confidence {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 2px;
+  }
+
+  /* ---------- Flow split bar ---------- */
+  .flow-bar {
+    height: 10px;
+    border-radius: 5px;
+    background: var(--hairline);
+    overflow: hidden;
+    display: flex;
+  }
+  .flow-bar .in { background: var(--bullish); height: 100%; transition: width 0.5s ease; }
+  .flow-bar .out { background: var(--bearish); height: 100%; transition: width 0.5s ease; }
+
+  .flow-numbers {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .flow-numbers .in-num { color: var(--bullish); }
+  .flow-numbers .out-num { color: var(--bearish); }
+
+  /* ---------- Stat rows ---------- */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 12px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .label { color: var(--text-muted); }
+  .stat-row .val { font-family: 'IBM Plex Mono', monospace; }
+  .val.pos { color: var(--bullish); }
+  .val.neg { color: var(--bearish); }
+
+  /* ---------- Vacuum alert ---------- */
+  #vacuum-panel { transition: opacity 0.3s, max-height 0.3s; }
+  #vacuum-panel.hidden { display: none; }
+  #vacuum-panel { border-color: var(--amber); }
+  .vacuum-msg { font-size: 12px; line-height: 1.5; color: var(--text); }
+  .vacuum-msg b { color: var(--amber); }
+
+  /* ---------- Targets ---------- */
+  .target-row { display: flex; justify-content: space-between; font-size: 12px; padding: 6px 0; }
+  .target-row .lbl { color: var(--text-muted); }
+  .target-row .lvl { font-family: 'IBM Plex Mono', monospace; }
+
+  footer {
+    padding: 12px 22px 18px;
+    border-top: 1px solid var(--hairline);
+    font-size: 11px;
+    color: var(--text-faint);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  footer .diag { font-family: 'IBM Plex Mono', monospace; }
+</style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h3>SMART MONEY FLOW</h3>
-    <div id="stats">
-        <div class="stat-box">Net Flow (1h): <span id="net-flow" class="inflow">+$12.4M</span></div>
-    </div>
-    <div id="tx-log"></div>
-</div>
+<header>
+  <div class="brand">
+    <span class="mark">SENTINEL</span>
+    <span class="sub">Smart Money Flow Monitor</span>
+  </div>
+  <div class="price-block">
+    <span class="pair mono">BTC/USDT</span>
+    <span class="price mono" id="last-price">—</span>
+  </div>
+  <div class="status" id="status">
+    <span class="dot"></span>
+    <span id="status-text">CONNECTING</span>
+  </div>
+</header>
 
-<div id="chart-container"><div id="chart"></div></div>
+<main>
+  <section class="panel" id="chart-panel">
+    <div class="panel-title">
+      <span>Price · VWAP (window)</span>
+      <span class="legend">
+        <span><i class="swatch" style="background:#9AA3AF"></i>Price</span>
+        <span><i class="swatch" style="background:#E8A33D"></i>VWAP</span>
+      </span>
+    </div>
+    <div id="chart"></div>
+  </section>
+
+  <aside class="sidebar">
+
+    <div class="panel gauge-wrap">
+      <div class="panel-title" style="align-self:flex-start; width:100%;">Flow Vector</div>
+      <div class="gauge">
+        <svg viewBox="0 0 260 150">
+          <path class="gauge-arc-bg" d="M 20 130 A 110 110 0 0 1 240 130" />
+          <line class="gauge-tick" x1="20" y1="130" x2="35" y2="115" />
+          <line class="gauge-tick" x1="130" y1="20" x2="130" y2="38" />
+          <line class="gauge-tick" x1="240" y1="130" x2="225" y2="115" />
+          <text class="gauge-label" x="6" y="148">BEARISH</text>
+          <text class="gauge-label" x="112" y="14">NEUTRAL</text>
+          <text class="gauge-label" x="200" y="148">BULLISH</text>
+
+          <line id="needle-echo" class="needle-echo" x1="130" y1="130" x2="130" y2="38" />
+          <line id="needle" class="needle" x1="130" y1="130" x2="130" y2="38" />
+          <circle class="gauge-hub" cx="130" cy="130" r="7" />
+        </svg>
+      </div>
+      <div class="gauge-readout">
+        <div class="gauge-direction neutral" id="direction-text">NEUTRAL</div>
+        <div class="gauge-confidence" id="confidence-text">confidence 0 / 100</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Inflow / Outflow (decayed)</div>
+      <div class="flow-bar">
+        <div class="in" id="flow-in" style="width:50%"></div>
+        <div class="out" id="flow-out" style="width:50%"></div>
+      </div>
+      <div class="flow-numbers">
+        <span class="in-num mono" id="inflow-num">$0</span>
+        <span class="out-num mono" id="outflow-num">$0</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Order Flow &amp; Volume</div>
+      <div class="stat-row"><span class="label">OFI (normalized)</span><span class="val mono" id="ofi-val">0.00</span></div>
+      <div class="stat-row"><span class="label">Volume Z-score</span><span class="val mono" id="zscore-val">0.00</span></div>
+      <div class="stat-row"><span class="label">Session VWAP</span><span class="val mono" id="vwap-session-val">—</span></div>
+    </div>
+
+    <div class="panel" id="vacuum-panel">
+      <div class="panel-title">Liquidity Vacuum</div>
+      <div class="vacuum-msg" id="vacuum-msg">No vacuum detected on either side of the book.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Reference Targets</div>
+      <div class="target-row"><span class="lbl">Upside</span><span class="lvl pos mono" id="target-up">—</span></div>
+      <div class="target-row"><span class="lbl">Downside</span><span class="lvl neg mono" id="target-down">—</span></div>
+    </div>
+
+  </aside>
+</main>
+
+<footer>
+  <span>confidence_heuristic is a signal-strength score from OFI + volume Z-score + liquidity vacuum, not a calibrated probability. Not financial advice.</span>
+  <span class="diag" id="diag">ticks: 0 · latency p99: 0.0 µs · dropped: 0</span>
+</footer>
 
 <script>
-    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
-        width: 1000, height: 600, layout: { backgroundColor: '#0a0e17', textColor: '#ddd' }
+(function () {
+  const DATA_URL = 'smart_money.json';
+  const POLL_MS = 1000;
+
+  const chartEl = document.getElementById('chart');
+  const chart = LightweightCharts.createChart(chartEl, {
+    layout: { background: { color: 'transparent' }, textColor: '#888F99', fontFamily: "'IBM Plex Mono', monospace" },
+    grid: { vertLines: { color: '#1A1E25' }, horzLines: { color: '#1A1E25' } },
+    rightPriceScale: { borderColor: '#232830' },
+    timeScale: { borderColor: '#232830', timeVisible: true, secondsVisible: true },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  });
+
+  const priceSeries = chart.addLineSeries({ color: '#9AA3AF', lineWidth: 2 });
+  const vwapSeries = chart.addLineSeries({ color: '#E8A33D', lineWidth: 2 });
+
+  new ResizeObserver(() => chart.applyOptions({ width: chartEl.clientWidth, height: chartEl.clientHeight }))
+    .observe(chartEl);
+
+  let lastTimestampMs = null;
+
+  const fmtUsd = (v) => {
+    if (v === undefined || v === null) return '—';
+    return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  const fmtCompactUsd = (v) => {
+    if (!isFinite(v)) return '$0';
+    const abs = Math.abs(v);
+    if (abs >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2) + 'M';
+    if (abs >= 1_000) return '$' + (v / 1_000).toFixed(1) + 'k';
+    return '$' + v.toFixed(0);
+  };
+
+  function setStatus(state) {
+    const el = document.getElementById('status');
+    const text = document.getElementById('status-text');
+    el.classList.remove('live', 'reconnecting');
+    if (state === 'LIVE') { el.classList.add('live'); text.textContent = 'LIVE'; }
+    else if (state === 'RECONNECTING' || state === 'CONNECTING') { el.classList.add('reconnecting'); text.textContent = state; }
+    else { text.textContent = 'OFFLINE'; }
+  }
+
+  function setNeedle(score, direction) {
+    // score expected roughly in [-1, 1]; map to [-90, +90] degrees from vertical.
+    const clamped = Math.max(-1, Math.min(1, score));
+    const angle = clamped * 90;
+    const needle = document.getElementById('needle');
+    const echo = document.getElementById('needle-echo');
+
+    const cls = direction === 'BULLISH' ? 'bullish' : direction === 'BEARISH' ? 'bearish' : '';
+    needle.setAttribute('class', 'needle ' + cls);
+
+    // Echo lags behind on a slower transition, creating a CRT-phosphor trail.
+    echo.setAttribute('class', 'needle-echo ' + cls);
+    requestAnimationFrame(() => {
+      echo.style.transform = `rotate(${angle}deg)`;
     });
-    const candleSeries = chart.addCandlestickSeries();
-    
-    // Имитация детекции китов
-    function updateData(price, volume, isBuy) {
-        const time = Math.floor(Date.now() / 1000);
-        candleSeries.update({ time, open: price-2, high: price+5, low: price-5, close: price });
-        
-        if (volume > 500000) { // Порог "Умных денег"
-            const type = isBuy ? 'INFLOW' : 'OUTFLOW';
-            const color = isBuy ? 'inflow' : 'outflow';
-            const log = document.getElementById('tx-log');
-            log.innerHTML = `<div class="log-item ${color}">
-                ${type}: $${(volume/1000000).toFixed(2)}M at $${price}<br>
-                Target: $${(price + (isBuy ? 50 : -50)).toFixed(2)}
-            </div>` + log.innerHTML;
-        }
+    needle.style.transform = `rotate(${angle}deg)`;
+  }
+
+  function applySnapshot(d) {
+    document.getElementById('last-price').textContent = d.last_price ? d.last_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+
+    const dirEl = document.getElementById('direction-text');
+    dirEl.textContent = d.direction || 'NEUTRAL';
+    dirEl.className = 'gauge-direction ' + (d.direction || 'neutral').toLowerCase();
+    document.getElementById('confidence-text').textContent = `confidence ${Math.round(d.confidence_heuristic || 0)} / 100`;
+
+    // Reconstruct a -1..1 composite score from confidence + direction for the needle.
+    const mag = (d.confidence_heuristic || 0) / 100;
+    const signedScore = d.direction === 'BEARISH' ? -mag : d.direction === 'BULLISH' ? mag : 0;
+    setNeedle(signedScore, d.direction);
+
+    const inflow = d.inflow || 0;
+    const outflow = d.outflow || 0;
+    const total = inflow + outflow;
+    const inPct = total > 0 ? (inflow / total) * 100 : 50;
+    document.getElementById('flow-in').style.width = inPct + '%';
+    document.getElementById('flow-out').style.width = (100 - inPct) + '%';
+    document.getElementById('inflow-num').textContent = '+' + fmtCompactUsd(inflow);
+    document.getElementById('outflow-num').textContent = '−' + fmtCompactUsd(outflow);
+
+    document.getElementById('ofi-val').textContent = (d.ofi_normalized ?? 0).toFixed(3);
+    document.getElementById('ofi-val').className = 'val mono ' + ((d.ofi_normalized ?? 0) >= 0 ? 'pos' : 'neg');
+    document.getElementById('zscore-val').textContent = (d.volume_zscore ?? 0).toFixed(2);
+    document.getElementById('vwap-session-val').textContent = d.vwap_session ? fmtUsd(d.vwap_session) : '—';
+
+    const vacPanel = document.getElementById('vacuum-panel');
+    const vac = d.vacuum || {};
+    if (vac.detected) {
+      vacPanel.classList.remove('hidden');
+      document.getElementById('vacuum-msg').innerHTML =
+        `<b>${vac.side === 'BUY' ? 'Ask-side' : 'Bid-side'} liquidity pulled</b> — depth withdrawal at ${vac.magnitude_zscore.toFixed(1)}σ above baseline. ` +
+        (vac.side === 'BUY' ? 'Consistent with a cleared path upward.' : 'Consistent with a cleared path downward.');
+    } else {
+      document.getElementById('vacuum-msg').textContent = 'No vacuum detected on either side of the book.';
     }
 
-    // Симуляция потока данных
-    setInterval(() => updateData(65000 + Math.random()*100, Math.random()*1000000, Math.random() > 0.5), 2000);
+    document.getElementById('target-up').textContent = d.targets ? fmtUsd(d.targets.up) : '—';
+    document.getElementById('target-down').textContent = d.targets ? fmtUsd(d.targets.down) : '—';
+
+    setStatus(d.connection_state);
+
+    document.getElementById('diag').textContent =
+      `ticks: ${d.diagnostics?.ticks_processed ?? 0} · latency p99: ${(d.diagnostics?.latency_p99_us ?? 0).toFixed(1)} µs · dropped: ${d.ring_buffer_dropped ?? 0}`;
+
+    if (d.timestamp_ms && d.timestamp_ms !== lastTimestampMs && d.last_price) {
+      lastTimestampMs = d.timestamp_ms;
+      const t = Math.floor(d.timestamp_ms / 1000);
+      priceSeries.update({ time: t, value: d.last_price });
+      if (d.vwap_window) vwapSeries.update({ time: t, value: d.vwap_window });
+    }
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch(DATA_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error('not ready');
+      const data = await res.json();
+      applySnapshot(data);
+    } catch (e) {
+      setStatus('OFFLINE');
+      document.getElementById('status-text').textContent = 'WAITING FOR CORE';
+    } finally {
+      setTimeout(poll, POLL_MS);
+    }
+  }
+
+  poll();
+})();
 </script>
+
 </body>
 </html>
