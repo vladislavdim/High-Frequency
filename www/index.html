@@ -51,7 +51,7 @@
   /* CVD MINI CHART */
   #cvd-bar { height: 80px; border-top: 1px solid var(--border); position: relative; }
   #cvd-chart { width: 100%; height: 100%; }
-  #cvd-label { position: absolute; top: 4px; left: 8px; font-size: 9px; color: var(--muted); pointer-events: none; }
+  #cvd-label { position: absolute; top: 4px; left: 8px; font-size: 9px; color: var(--muted); pointer-events: none; z-index: 10; }
 
   /* SIDEBAR */
   #sidebar { width: 300px; flex-shrink: 0; overflow-y: auto; background: var(--bg2); display: flex; flex-direction: column; }
@@ -90,12 +90,13 @@
   #flow-needle { position: absolute; top: 0; height: 100%; border-radius: 3px; transition: all .5s; }
 
   /* TARGETS */
-  .target-row { background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 7px 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+  .target-row { background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 7px 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s; }
+  .target-row.whale-alert { border-color: var(--gold); box-shadow: 0 0 10px rgba(255, 215, 64, 0.2); }
   .target-row .t-label { font-size: 9px; color: var(--muted); }
   .target-row .t-price { font-size: 14px; font-weight: bold; }
   .target-row .t-meta { text-align: right; font-size: 9px; }
   .target-row .t-conf { font-size: 11px; font-weight: bold; }
-  .vacuum-row { font-size: 9px; color: var(--muted); padding: 6px 0; border-top: 1px solid var(--border); margin-top: 4px; }
+  .vacuum-row { font-size: 9px; color: var(--muted); padding: 6px 0; border-top: 1px solid var(--border); margin-top: 4px; font-weight: bold; transition: color 0.3s;}
 
   /* ALTCOIN HEATMAP */
   .alt-header { font-size: 9px; color: var(--muted); margin-bottom: 6px; }
@@ -111,7 +112,7 @@
   /* STATUS BAR */
   #statusbar { display: flex; gap: 20px; padding: 4px 14px; border-top: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; font-size: 9px; color: var(--muted); }
   .sb-item { display: flex; flex-direction: column; gap: 1px; }
-  .sb-label { font-size: 8px; color: #2a3545; }
+  .sb-label { font-size: 8px; color: #5a6b82; }
   .sb-val { font-weight: bold; font-size: 10px; color: var(--text); }
 
   .green { color: var(--green); }
@@ -124,11 +125,10 @@
 </head>
 <body>
 
-<!-- HEADER -->
 <div id="header">
   <div style="display:flex;align-items:center;gap:8px">
     <span class="logo">SENTINEL</span>
-    <span class="subtitle">BTC SMART MONEY v3 · GOVERNMENT LEVEL</span>
+    <span class="subtitle">BTC SMART MONEY v3 · QUANT ENGINE</span>
   </div>
   <div class="price-block">
     <div class="price" id="hdr-price">—</div>
@@ -140,15 +140,12 @@
   </div>
 </div>
 
-<!-- TABS -->
 <div id="tabs">
   <div class="tab active" data-tab="price">PRICE · VWAP</div>
   <div class="tab" data-tab="cvd">CVD · DELTA</div>
 </div>
 
-<!-- MAIN -->
 <div id="main">
-  <!-- CHART SECTION -->
   <div id="chart-section">
     <div id="chart-container">
       <div id="price-chart"></div>
@@ -159,16 +156,14 @@
     </div>
   </div>
 
-  <!-- SIDEBAR -->
   <div id="sidebar">
 
-    <!-- INSTITUTIONAL DIRECTION -->
     <div class="panel">
       <div class="panel-title">INSTITUTIONAL DIRECTION</div>
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <div style="font-size:9px;color:var(--muted)">INSTITUTIONAL SIGNAL</div>
-          <div id="inst-signal" class="green">STRONG BUY</div>
+          <div id="inst-signal" class="green">WAITING DATA</div>
           <div class="inst-meta" id="inst-meta">A/D Score: — | CVD Δ: —</div>
         </div>
         <svg id="confidence-ring" width="56" height="56" viewBox="0 0 56 56">
@@ -198,7 +193,6 @@
       </div>
     </div>
 
-    <!-- FLOW VECTOR -->
     <div class="panel">
       <div class="panel-title">FLOW VECTOR</div>
       <div id="flow-bar-wrap">
@@ -228,11 +222,10 @@
       </div>
     </div>
 
-    <!-- GLOBAL TARGETS -->
     <div class="panel">
-      <div class="panel-title">GLOBAL TARGETS · LIQUIDITY POOLS</div>
+      <div class="panel-title">GLOBAL TARGETS · PREDICTION ENGINE</div>
 
-      <div class="target-row">
+      <div class="target-row" id="target-up-box">
         <div>
           <div class="t-label">PRIMARY TARGET ↑</div>
           <div class="t-price green" id="tgt-up">—</div>
@@ -243,7 +236,7 @@
         </div>
       </div>
 
-      <div class="target-row">
+      <div class="target-row" id="target-dn-box">
         <div>
           <div class="t-label">PRIMARY TARGET ↓</div>
           <div class="t-price red" id="tgt-dn">—</div>
@@ -265,10 +258,9 @@
         </div>
       </div>
 
-      <div class="vacuum-row" id="vacuum-info">No vacuum detected — Market depth normal</div>
+      <div class="vacuum-row" id="vacuum-info">Analyzing Order Book Depth...</div>
     </div>
 
-    <!-- ALTCOIN HEATMAP -->
     <div class="panel">
       <div class="panel-title">ALTCOIN LIQUIDITY HEATMAP</div>
       <div class="alt-flow-mode" id="alt-flow-mode">BTC FLOW MODE: — — Analyzing...</div>
@@ -298,7 +290,6 @@
   </div>
 </div>
 
-<!-- STATUS BAR -->
 <div id="statusbar">
   <div class="sb-item"><span class="sb-label">SESSION VWAP</span><span class="sb-val cyan" id="sb-vwap">—</span></div>
   <div class="sb-item"><span class="sb-label">VOL Z-SCORE</span><span class="sb-val" id="sb-zscore">0.00</span></div>
@@ -328,7 +319,8 @@ const S = {
   altPrices: { ETH: [], SOL: [], LINK: [] },
   altCvd: { ETH: 0, SOL: 0, LINK: 0 },
   btcPrices: [],
-  connected: false
+  connected: false,
+  whalePredictionOverride: null // Хранит предикшен "Приказа Планеты"
 };
 
 // ─── CHARTS INIT ─────────────────────────────────────────────────────
@@ -574,30 +566,52 @@ function renderUI(price, vwap, zScore) {
   adEl.textContent = adS.toFixed(3);
   adEl.className = 'mval ' + (adS > 0 ? 'green' : 'red');
 
-  // Targets
+  // Targets & Whale Prediction Override
   const tgts = computeTargets(price, vwap);
   if (tgts) {
+    // Standard Math Output
     document.getElementById('tgt-up').textContent = fmtPrice(tgts.up);
     document.getElementById('tgt-dn').textContent = fmtPrice(tgts.dn);
     document.getElementById('tgt-rev').textContent = fmtPrice(tgts.rev);
-    const upPct = ((tgts.up - price) / price * 100).toFixed(3);
-    const dnPct = ((tgts.dn - price) / price * 100).toFixed(3);
-    const revPct = ((tgts.rev - price) / price * 100).toFixed(2);
-    document.getElementById('tgt-up-pct').textContent = '+' + upPct + '%';
-    document.getElementById('tgt-dn-pct').textContent = dnPct + '%';
-    document.getElementById('tgt-rev-pct').textContent = (parseFloat(revPct) >= 0 ? '+' : '') + revPct + '%';
+    
+    document.getElementById('tgt-up-pct').textContent = '+' + ((tgts.up - price) / price * 100).toFixed(3) + '%';
+    document.getElementById('tgt-dn-pct').textContent = ((tgts.dn - price) / price * 100).toFixed(3) + '%';
+    document.getElementById('tgt-rev-pct').textContent = (((tgts.rev - price) / price * 100) >= 0 ? '+' : '') + ((tgts.rev - price) / price * 100).toFixed(2) + '%';
+    
     document.getElementById('tgt-up-conf').textContent = tgts.confUp + '%';
     document.getElementById('tgt-dn-conf').textContent = tgts.confDn + '%';
     document.getElementById('tgt-rev-conf').textContent = tgts.confRev + '%';
+
+    // OVERRIDE: Если есть активный "Приказ Планеты" (китовое вливание)
+    if (S.whalePredictionOverride) {
+      if (S.whalePredictionOverride.dir === 'UP') {
+        document.getElementById('tgt-up').textContent = fmtPrice(S.whalePredictionOverride.target);
+        document.getElementById('tgt-up-pct').textContent = 'WHALE SQZ: +' + S.whalePredictionOverride.pct + '%';
+        document.getElementById('tgt-up-pct').style.color = 'var(--gold)';
+        document.getElementById('target-up-box').classList.add('whale-alert');
+      } else {
+        document.getElementById('tgt-dn').textContent = fmtPrice(S.whalePredictionOverride.target);
+        document.getElementById('tgt-dn-pct').textContent = 'WHALE DROP: ' + S.whalePredictionOverride.pct + '%';
+        document.getElementById('tgt-dn-pct').style.color = 'var(--gold)';
+        document.getElementById('target-dn-box').classList.add('whale-alert');
+      }
+    } else {
+      document.getElementById('target-up-box').classList.remove('whale-alert');
+      document.getElementById('target-dn-box').classList.remove('whale-alert');
+      document.getElementById('tgt-up-pct').style.color = 'var(--green)';
+      document.getElementById('tgt-dn-pct').style.color = 'var(--red)';
+    }
   }
 
-  // Vacuum
+  // Vacuum Logic
   const bidAskRatio = S.bidDepth > 0 ? S.askDepth / S.bidDepth : 1;
   let vacuumMsg = 'No vacuum detected — Market depth normal';
-  if (bidAskRatio < 0.3) vacuumMsg = '⚠ BID VACUUM — Sell-side sweep incoming';
+  if (S.whalePredictionOverride) vacuumMsg = '⚠ INSTITUTIONAL INFLOW DETECTED. RECALCULATING...';
+  else if (bidAskRatio < 0.3) vacuumMsg = '⚠ BID VACUUM — Sell-side sweep incoming';
   else if (bidAskRatio > 3) vacuumMsg = '⚠ ASK VACUUM — Buy-side sweep incoming';
+  
   document.getElementById('vacuum-info').textContent = vacuumMsg;
-  document.getElementById('vacuum-info').style.color = bidAskRatio < 0.3 || bidAskRatio > 3 ? '#ffd740' : 'var(--muted)';
+  document.getElementById('vacuum-info').style.color = (S.whalePredictionOverride || bidAskRatio < 0.3 || bidAskRatio > 3) ? '#ffd740' : 'var(--muted)';
 
   // Status bar
   document.getElementById('sb-vwap').textContent = fmtPrice(vwap);
@@ -681,6 +695,7 @@ function pushCvdChart(cvdVal) {
 // ─── WEBSOCKET: BTC ──────────────────────────────────────────────────
 let btcOrderBook = { bids: {}, asks: {} };
 let wsBook, wsTrades;
+let whaleTimer = null; // Таймер сброса предикшена
 
 function connectBTC() {
   // Combined stream: order book depth 20 + aggTrades
@@ -689,7 +704,7 @@ function connectBTC() {
 
   ws.onopen = () => {
     document.getElementById('status-dot').className = 'live';
-    document.getElementById('status-text').textContent = 'LIVE';
+    document.getElementById('status-text').textContent = 'LIVE / CONNECTED';
     S.connected = true;
   };
 
@@ -716,34 +731,63 @@ function connectBTC() {
       updateOFI(bidVol, askVol);
 
     } else if (stream.includes('aggTrade')) {
-      // Trade
+      // ─── СВЕЖИЕ ДАННЫЕ О СДЕЛКАХ ───
       const price = parseFloat(data.p);
       const vol = parseFloat(data.q);
-      const isBuy = !data.m; // maker = seller, so !m = buyer aggressor
+      const isBuyerMaker = data.m;
+      const amount = price * vol;
 
-      if (S.sessionOpen === 0) {
-        S.sessionOpen = price;
-        S.sessionHigh = price;
-        S.sessionLow = price;
-      }
+      // 1. Обновление состояния цены
       S.price = price;
-      S.sessionHigh = Math.max(S.sessionHigh, price);
-      S.sessionLow = Math.min(S.sessionLow, price);
       S.trades++;
+      if (S.sessionOpen === 0) S.sessionOpen = price;
+      if (price > S.sessionHigh) S.sessionHigh = price;
+      if (price < S.sessionLow || S.sessionLow === 0) S.sessionLow = price;
 
-      if (vol * price > 100000) S.whales++;
+      // 2. Обновление CVD
+      if (isBuyerMaker) {
+        // Maker is buyer -> Market SELL
+        S.cvdSell += amount;
+        S.cvdSession -= amount;
+      } else {
+        // Maker is seller -> Market BUY
+        S.cvdBuy += amount;
+        S.cvdSession += amount;
+      }
 
-      if (isBuy) { S.cvdBuy += vol; S.cvdSession += vol; }
-      else { S.cvdSell += vol; S.cvdSession -= vol; }
-
+      // 3. Математика
       S.adScore = computeADScore(S.cvdBuy, S.cvdSell);
-
-      const vwap = updateVWAP(price, vol);
       const zScore = updateVolZ(vol);
+      const vwap = updateVWAP(price, vol);
 
-      S.btcPrices.push(price);
-      if (S.btcPrices.length > 60) S.btcPrices.shift();
+      // 4. ПРЕДИКШЕН (ПРИКАЗ ПЛАНЕТЫ)
+      // Если проходит объем > 100k USDT одним ордером - это Кит
+      if (amount > 100000) {
+        S.whales++;
+        
+        // Математика давления: Вливание / Противоположный стакан
+        const opposingDepth = isBuyerMaker ? (S.bidDepth || 1) : (S.askDepth || 1);
+        const impact = (amount / opposingDepth) * 5; // Мультипликатор влияния
+        
+        if (!isBuyerMaker) {
+           // Огромная покупка -> Сквиз вверх
+           const target = price * (1 + impact);
+           S.whalePredictionOverride = { dir: 'UP', target: target, pct: (impact * 100).toFixed(2) };
+        } else {
+           // Огромная продажа -> Дамп вниз
+           const target = price * (1 - impact);
+           S.whalePredictionOverride = { dir: 'DOWN', target: target, pct: (impact * 100).toFixed(2) };
+        }
 
+        // Сбрасываем алерт через 15 секунд
+        clearTimeout(whaleTimer);
+        whaleTimer = setTimeout(() => {
+            S.whalePredictionOverride = null;
+            renderUI(S.price, updateVWAP(S.price, 0), zScore);
+        }, 15000);
+      }
+
+      // 5. Отрисовка
       pushTick(price, vol);
       pushVwap(vwap);
       pushCvdChart(S.cvdSession);
@@ -751,52 +795,17 @@ function connectBTC() {
     }
   };
 
+  ws.onerror = (err) => console.error("WS Error:", err);
   ws.onclose = () => {
-    S.connected = false;
     document.getElementById('status-dot').className = '';
-    document.getElementById('status-text').textContent = 'RECONNECTING';
-    setTimeout(connectBTC, 3000);
+    document.getElementById('status-text').textContent = 'OFFLINE. RECONNECTING...';
+    setTimeout(connectBTC, 3000); // Автовосстановление
   };
-  ws.onerror = () => ws.close();
 }
 
-// ─── WEBSOCKET: ALTCOINS ─────────────────────────────────────────────
-function connectAlt(coin) {
-  const sym = coin.toLowerCase() + 'usdt@aggTrade';
-  const ws = new WebSocket('wss://stream.binance.com:9443/ws/' + sym);
-
-  ws.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    const price = parseFloat(data.p);
-    const vol = parseFloat(data.q);
-    const isBuy = !data.m;
-
-    S.altPrices[coin].push(price);
-    if (S.altPrices[coin].length > 60) S.altPrices[coin].shift();
-
-    if (isBuy) S.altCvd[coin] += vol;
-    else S.altCvd[coin] -= vol;
-  };
-
-  ws.onclose = () => setTimeout(() => connectAlt(coin), 5000);
-  ws.onerror = () => ws.close();
-}
-
-// ─── TABS ─────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    // Chart tab switching could be added here
-  });
-});
-
-// ─── BOOT ────────────────────────────────────────────────────────────
+// ─── ЗАПУСК ──────────────────────────────────────────────────────────
 initCharts();
 connectBTC();
-connectAlt('ETH');
-connectAlt('SOL');
-connectAlt('LINK');
 </script>
 </body>
 </html>
