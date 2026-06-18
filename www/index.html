@@ -1,94 +1,473 @@
-// Sentinel_CloudPublisher.cpp
-#include "Sentinel_CloudPublisher.hpp"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SENTINEL — BTC Smart Money</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080B10;--panel:#0F1318;--panel2:#141920;--border:#1C2330;
+  --text:#DDE2EA;--muted:#5A6272;--faint:#2A3040;
+  --amber:#F0A500;--bull:#00D4A0;--bear:#FF4560;--bull-dim:#003D2E;--bear-dim:#3D0F18;
+  --r:10px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
 
-#include <openssl/ssl.h>
-#include <iostream>
+/* ── HEADER ── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 20px;border-bottom:1px solid var(--border);
+  height:52px;flex-shrink:0;
+}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand-name{font-weight:700;font-size:13px;letter-spacing:.15em;color:var(--amber)}
+.brand-sub{font-size:11px;color:var(--muted);letter-spacing:.05em}
+.price-wrap{display:flex;align-items:baseline;gap:10px}
+.pair-label{font-size:12px;color:var(--muted);letter-spacing:.06em}
+#hdr-price{font-size:26px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--text);transition:color .2s}
+#hdr-price.up{color:var(--bull)}#hdr-price.down{color:var(--bear)}
+.status{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--faint);transition:all .3s}
+.status.live .dot{background:var(--bull);box-shadow:0 0 8px rgba(0,212,160,.6);animation:blink 2s ease-in-out infinite}
+.status.warn .dot{background:var(--amber);box-shadow:0 0 8px rgba(240,165,0,.5)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.status.live .dot{animation:none}}
 
-namespace sentinel {
+/* ── LAYOUT ── */
+.layout{display:grid;grid-template-columns:1fr 300px;height:calc(100vh - 52px - 32px);padding:14px 20px;gap:14px}
+@media(max-width:800px){.layout{grid-template-columns:1fr;height:auto;overflow-y:auto}}
 
-CloudPublisher::CloudPublisher(Config config) : cfg_(std::move(config)) {
-    ssl_ctx_.set_default_verify_paths();
-    ssl_ctx_.set_verify_mode(ssl::verify_peer);
+/* ── CHART ── */
+.chart-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.chart-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.chart-title{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.chart-legend{display:flex;gap:14px;font-size:10px;color:var(--muted)}
+.chart-legend span{display:flex;align-items:center;gap:5px}
+.swatch{width:12px;height:2px;display:inline-block;border-radius:1px}
+#chart{flex:1;min-height:0}
+
+/* ── SIDEBAR ── */
+.sidebar{display:flex;flex-direction:column;gap:10px;overflow-y:auto;min-height:0}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.card-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:10px}
+
+/* ── FLOW METER (signature element) ── */
+.flow-meter-wrap{display:flex;gap:12px;align-items:stretch}
+.flow-bar-track{
+  width:28px;border-radius:14px;background:var(--faint);
+  position:relative;overflow:hidden;flex-shrink:0;min-height:110px;
+}
+.flow-bar-fill{
+  position:absolute;bottom:0;left:0;right:0;
+  border-radius:14px;transition:height .7s cubic-bezier(.22,1,.36,1),background .4s;
+  background:var(--bull);
+}
+.flow-bar-mid{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--border)}
+.flow-bar-needle{
+  position:absolute;left:-3px;right:-3px;height:3px;border-radius:2px;
+  background:var(--amber);box-shadow:0 0 8px var(--amber);
+  transition:bottom .7s cubic-bezier(.22,1,.36,1);
+}
+.flow-readout{flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px}
+.flow-direction{font-size:22px;font-weight:700;letter-spacing:.04em;transition:color .3s}
+.flow-direction.bull{color:var(--bull)}.flow-direction.bear{color:var(--bear)}.flow-direction.neu{color:var(--muted)}
+.flow-conf{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.flow-ofi-label{font-size:10px;color:var(--muted)}.flow-ofi-val{font-size:13px;font-family:'JetBrains Mono',monospace;transition:color .3s}
+
+/* ── INFLOW/OUTFLOW ── */
+.flow-split{height:8px;border-radius:4px;overflow:hidden;display:flex;background:var(--faint);margin-bottom:6px}
+.flow-in{background:var(--bull);transition:width .5s ease;height:100%}
+.flow-out{background:var(--bear);transition:width .5s ease;height:100%}
+.flow-nums{display:flex;justify-content:space-between;font-size:11px;font-family:'JetBrains Mono',monospace}
+.flow-nums .in{color:var(--bull)}.flow-nums .out{color:var(--bear)}
+
+/* ── STAT ROWS ── */
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.stat-row:last-child{border-bottom:none}
+.stat-lbl{color:var(--muted)}.stat-val{font-family:'JetBrains Mono',monospace}
+.stat-val.pos{color:var(--bull)}.stat-val.neg{color:var(--bear)}.stat-val.neu{color:var(--text)}
+
+/* ── VACUUM ── */
+.vacuum-card{border-color:var(--border);transition:border-color .3s}
+.vacuum-card.active{border-color:var(--amber)}
+.vacuum-msg{font-size:11px;line-height:1.55;color:var(--muted)}
+.vacuum-msg b{color:var(--amber)}
+
+/* ── TARGETS ── */
+.target-row{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}
+.target-lbl{color:var(--muted)}.target-val{font-family:'JetBrains Mono',monospace}
+.target-val.up{color:var(--bull)}.target-val.dn{color:var(--bear)}
+
+/* ── FOOTER ── */
+footer{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);flex-shrink:0}
+#diag{font-family:'JetBrains Mono',monospace}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-name">SENTINEL</span>
+    <span class="brand-sub">BTC Smart Money</span>
+  </div>
+  <div class="price-wrap">
+    <span class="pair-label mono">BTC/USDT</span>
+    <span id="hdr-price">—</span>
+  </div>
+  <div class="status" id="status">
+    <span class="dot"></span>
+    <span id="status-txt">CONNECTING</span>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="chart-panel">
+    <div class="chart-head">
+      <span class="chart-title">Price · VWAP</span>
+      <div class="chart-legend">
+        <span><i class="swatch" style="background:#8891A0"></i>Price</span>
+        <span><i class="swatch" style="background:#F0A500"></i>VWAP</span>
+        <span><i class="swatch" style="background:#00D4A0;opacity:.6"></i>VWAP window</span>
+      </div>
+    </div>
+    <div id="chart"></div>
+  </div>
+
+  <div class="sidebar">
+
+    <div class="card">
+      <div class="card-title">Flow Vector</div>
+      <div class="flow-meter-wrap">
+        <div class="flow-bar-track" id="fm-track">
+          <div class="flow-bar-fill" id="fm-fill" style="height:50%"></div>
+          <div class="flow-bar-mid"></div>
+          <div class="flow-bar-needle" id="fm-needle" style="bottom:50%"></div>
+        </div>
+        <div class="flow-readout">
+          <div class="flow-direction neu" id="fm-dir">NEUTRAL</div>
+          <div class="flow-conf" id="fm-conf">strength 0 / 100</div>
+          <div style="margin-top:6px">
+            <div class="flow-ofi-label">OFI normalized</div>
+            <div class="flow-ofi-val neu" id="fm-ofi">0.000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Inflow / Outflow</div>
+      <div class="flow-split"><div class="flow-in" id="fl-in" style="width:50%"></div><div class="flow-out" id="fl-out" style="width:50%"></div></div>
+      <div class="flow-nums">
+        <span class="in mono" id="fl-in-num">+$0</span>
+        <span class="out mono" id="fl-out-num">−$0</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Signals</div>
+      <div class="stat-row"><span class="stat-lbl">Volume Z-score</span><span class="stat-val neu mono" id="s-zscore">0.00</span></div>
+      <div class="stat-row"><span class="stat-lbl">Session VWAP</span><span class="stat-val neu mono" id="s-vwap">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Spread</span><span class="stat-val neu mono" id="s-spread">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Bid depth</span><span class="stat-val neu mono" id="s-bid-depth">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Ask depth</span><span class="stat-val neu mono" id="s-ask-depth">—</span></div>
+    </div>
+
+    <div class="card vacuum-card" id="vac-card">
+      <div class="card-title">Liquidity Vacuum</div>
+      <div class="vacuum-msg" id="vac-msg">No vacuum detected.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Reference Targets</div>
+      <div class="target-row"><span class="target-lbl">Upside</span><span class="target-val up mono" id="t-up">—</span></div>
+      <div class="target-row"><span class="target-lbl">Downside</span><span class="target-val dn mono" id="t-dn">—</span></div>
+      <div class="target-row"><span class="target-lbl">Distance up</span><span class="target-val mono" id="t-up-pct" style="color:var(--muted)">—</span></div>
+      <div class="target-row"><span class="target-lbl">Distance down</span><span class="target-val mono" id="t-dn-pct" style="color:var(--muted)">—</span></div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <span>OFI + Volume Z-score + Liquidity Vacuum · signal strength only · not financial advice</span>
+  <span id="diag">trades: 0 · ticks: 0</span>
+</footer>
+
+<script>
+(function(){
+'use strict';
+
+// ── Chart setup ──────────────────────────────────────────────────────────
+const chartEl = document.getElementById('chart');
+const chart = LightweightCharts.createChart(chartEl,{
+  layout:{background:{color:'transparent'},textColor:'#5A6272',fontFamily:"'JetBrains Mono',monospace"},
+  grid:{vertLines:{color:'#111820'},horzLines:{color:'#111820'}},
+  rightPriceScale:{borderColor:'#1C2330'},
+  timeScale:{borderColor:'#1C2330',timeVisible:true,secondsVisible:false},
+  crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
+  handleScroll:{mouseWheel:true},
+  handleScale:{mouseWheel:true},
+});
+const priceLine = chart.addLineSeries({color:'#8891A0',lineWidth:2,lastValueVisible:true,priceLineVisible:false});
+const vwapLine  = chart.addLineSeries({color:'#F0A500',lineWidth:2,lastValueVisible:false,priceLineVisible:false,lineStyle:LightweightCharts.LineStyle.Dashed});
+const vwapWin   = chart.addLineSeries({color:'#00D4A0',lineWidth:1,lastValueVisible:false,priceLineVisible:false,lineStyle:LightweightCharts.LineStyle.Dotted,lineOpacity:.5});
+new ResizeObserver(()=>chart.applyOptions({width:chartEl.clientWidth,height:chartEl.clientHeight})).observe(chartEl);
+
+// ── State ────────────────────────────────────────────────────────────────
+const VOL_WINDOW   = 200;
+const VWAP_WINDOW  = 500;
+const VAC_WINDOW   = 200;
+const VAC_Z_THRESH = 3.0;
+const FLOW_DECAY   = 0.9992;
+
+let lastPrice = 0, prevPrice = 0;
+let sessionPV = 0, sessionVol = 0;
+let winPVSum = 0, winVolSum = 0;
+const winTrades = []; // {pv,vol}
+let volSamples = [], volSum = 0, volSumSq = 0;
+let inflow = 0, outflow = 0;
+
+// OFI state
+let prevBidP = 0, prevBidS = 0, prevAskP = 0, prevAskS = 0, hasPrev = false;
+let ofiEma = 0, ofiScale = 1;
+const OFI_DECAY = 0.94;
+
+// Vacuum state
+let vacBidStats = {win:[], sum:0, sumSq:0};
+let vacAskStats = {win:[], sum:0, sumSq:0};
+let prevBidDepth = -1, prevAskDepth = -1;
+let vacDetected = false, vacSide = '', vacMag = 0;
+
+// Depth snapshot
+let bestBid = 0, bestAsk = 0, bidDepth = 0, askDepth = 0;
+
+let tradeCount = 0, depthCount = 0;
+
+// ── Rolling stat helpers ─────────────────────────────────────────────────
+function rollingPush(state, val, cap){
+  let z = 0;
+  if(state.win.length >= 2){
+    const n = state.win.length, m = state.sum/n;
+    const variance = Math.max(0, state.sumSq/n - m*m);
+    const sd = Math.sqrt(variance);
+    if(sd > 1e-9) z = (val - m)/sd;
+  }
+  state.win.push(val); state.sum += val; state.sumSq += val*val;
+  if(state.win.length > cap){
+    const old = state.win.shift(); state.sum -= old; state.sumSq -= old*old;
+  }
+  return z;
+}
+function rollingMean(state){ return state.win.length ? state.sum/state.win.length : 0; }
+
+const volState = {win:[], sum:0, sumSq:0};
+
+// ── OFI ──────────────────────────────────────────────────────────────────
+function calcOFI(bP,bS,aP,aS){
+  let ofi = 0;
+  if(hasPrev){
+    let dBid = bP>prevBidP ? bS : bP===prevBidP ? bS-prevBidS : -prevBidS;
+    let dAsk = aP<prevAskP ? aS : aP===prevAskP ? aS-prevAskS : -prevAskS;
+    ofi = dBid - dAsk;
+    const obs = (bS+aS)/2;
+    ofiScale = ofiScale*.98 + obs*.02;
+    ofiEma   = ofiEma*OFI_DECAY + ofi*(1-OFI_DECAY);
+  }
+  prevBidP=bP; prevBidS=bS; prevAskP=aP; prevAskS=aS; hasPrev=true;
+  return ofi;
+}
+function ofiNorm(){ return Math.tanh(ofiEma/(Math.max(ofiScale,1e-6)*4)); }
+
+// ── Vacuum ────────────────────────────────────────────────────────────────
+function checkVacuum(bDep, aDep){
+  vacDetected = false;
+  if(prevBidDepth >= 0){
+    const bWith = prevBidDepth - bDep;
+    const aWith = prevAskDepth - aDep;
+    const bZ = rollingPush(vacBidStats, bWith, VAC_WINDOW);
+    const aZ = rollingPush(vacAskStats, aWith, VAC_WINDOW);
+    if(bZ > VAC_Z_THRESH && bZ >= aZ){ vacDetected=true; vacSide='SELL'; vacMag=bZ; }
+    else if(aZ > VAC_Z_THRESH)       { vacDetected=true; vacSide='BUY';  vacMag=aZ; }
+  }
+  prevBidDepth=bDep; prevAskDepth=aDep;
 }
 
-void CloudPublisher::reset_connection() {
-    if (stream_) {
-        beast::error_code ec;
-        stream_->shutdown(ec); // best-effort; we're tearing this down regardless
-    }
-    stream_.reset();
+// ── VWAP ──────────────────────────────────────────────────────────────────
+function onTrade(price, qty, isBuy, ts){
+  prevPrice = lastPrice;
+  lastPrice = price;
+  const pv = price*qty;
+  sessionPV += pv; sessionVol += qty;
+  winTrades.push({pv,vol:qty}); winPVSum += pv; winVolSum += qty;
+  if(winTrades.length > VWAP_WINDOW){
+    const old = winTrades.shift(); winPVSum -= old.pv; winVolSum -= old.vol;
+  }
+  rollingPush(volState, qty, VOL_WINDOW);
+  const notional = pv;
+  inflow  = inflow  * FLOW_DECAY + (isBuy  ? notional : 0);
+  outflow = outflow * FLOW_DECAY + (!isBuy ? notional : 0);
+  tradeCount++;
+
+  const t = Math.floor(ts/1000);
+  priceLine.update({time:t, value:price});
+  const sv = sessionVol > 1e-12 ? sessionPV/sessionVol : 0;
+  const wv = winVolSum > 1e-12 ? winPVSum/winVolSum : 0;
+  if(sv) vwapLine.update({time:t, value:sv});
+  if(wv) vwapWin.update({time:t, value:wv});
 }
 
-bool CloudPublisher::ensure_connected() {
-    if (stream_) return true;
+// ── UI helpers ────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmtP = v => v ? '$'+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+const fmtC = v => {
+  if(!isFinite(v)||v===0) return '$0';
+  const a=Math.abs(v);
+  return a>=1e6?'$'+(v/1e6).toFixed(2)+'M':a>=1e3?'$'+(v/1e3).toFixed(1)+'k':'$'+v.toFixed(0);
+};
+function setStatus(cls, txt){ $('status').className='status '+cls; $('status-txt').textContent=txt; }
 
-    try {
-        tcp::resolver resolver(ioc_);
-        const auto results = resolver.resolve(cfg_.host, "443");
+function renderUI(){
+  const ofi   = ofiNorm();
+  const zsc   = volState.win.length >= 2 ? (()=>{
+    const n=volState.win.length, m=volState.sum/n;
+    const sd=Math.sqrt(Math.max(0,volState.sumSq/n-m*m));
+    const last=volState.win[volState.win.length-1];
+    return sd>1e-9?(last-m)/sd:0;
+  })() : 0;
+  const sv   = sessionVol>1e-12 ? sessionPV/sessionVol : 0;
+  const wv   = winVolSum>1e-12  ? winPVSum/winVolSum   : 0;
 
-        stream_.emplace(ioc_, ssl_ctx_);
+  // Composite signal score
+  const zComp = Math.tanh(zsc/4) * (ofi>=0?1:-1) * 0.3;
+  let vacComp = 0;
+  if(vacDetected) vacComp=(vacSide==='BUY'?1:-1)*Math.min(vacMag/6,1)*0.25;
+  const score = ofi*0.55 + zComp + vacComp;
+  const conf  = Math.min(Math.abs(score)*100, 100);
+  const dir   = score > 0.35 ? 'BULLISH' : score < -0.35 ? 'BEARISH' : 'NEUTRAL';
 
-        if (!SSL_set_tlsext_host_name(stream_->native_handle(), cfg_.host.c_str())) {
-            std::cerr << "[Sentinel_CloudPublisher] SNI set failed\n";
-            stream_.reset();
-            return false;
+  // Price header
+  const ph = $('hdr-price');
+  ph.textContent = lastPrice ? lastPrice.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+  ph.className = 'mono' + (lastPrice>prevPrice?' up':lastPrice<prevPrice?' down':'');
+
+  // Flow meter vertical bar
+  const pct = Math.max(0,Math.min(100,(score+1)/2*100));
+  const fm = $('fm-fill');
+  fm.style.height = pct+'%';
+  fm.style.background = dir==='BULLISH'?'var(--bull)':dir==='BEARISH'?'var(--bear)':'var(--amber)';
+  $('fm-needle').style.bottom = pct+'%';
+  const fd = $('fm-dir');
+  fd.textContent = dir;
+  fd.className = 'flow-direction '+(dir==='BULLISH'?'bull':dir==='BEARISH'?'bear':'neu');
+  $('fm-conf').textContent = 'strength '+Math.round(conf)+' / 100';
+  const fo = $('fm-ofi');
+  fo.textContent = ofi.toFixed(3);
+  fo.className = 'flow-ofi-val '+(ofi>0.05?'pos':ofi<-0.05?'neg':'neu')+' mono';
+
+  // Inflow/outflow bar
+  const tot = inflow+outflow;
+  const ip  = tot>0?(inflow/tot)*100:50;
+  $('fl-in').style.width  = ip+'%';
+  $('fl-out').style.width = (100-ip)+'%';
+  $('fl-in-num').textContent  = '+'+fmtC(inflow);
+  $('fl-out-num').textContent = '−'+fmtC(outflow);
+
+  // Signals
+  const zEl = $('s-zscore');
+  zEl.textContent = zsc.toFixed(2);
+  zEl.className = 'stat-val mono '+(zsc>2?'pos':zsc<-2?'neg':'neu');
+  $('s-vwap').textContent  = sv ? fmtP(sv) : '—';
+  const spread = bestAsk && bestBid ? (bestAsk-bestBid).toFixed(2) : '—';
+  $('s-spread').textContent = spread !== '—' ? '$'+spread : '—';
+  $('s-bid-depth').textContent = bidDepth ? fmtC(bidDepth*lastPrice) : '—';
+  $('s-ask-depth').textContent = askDepth ? fmtC(askDepth*lastPrice) : '—';
+
+  // Vacuum
+  const vc = $('vac-card');
+  if(vacDetected){
+    vc.classList.add('active');
+    $('vac-msg').innerHTML =
+      `<b>${vacSide==='BUY'?'Ask':'Bid'}-side depth pulled</b> — `+
+      `${vacMag.toFixed(1)}σ withdrawal. `+
+      (vacSide==='BUY'?'Path cleared upward.':'Path cleared downward.');
+  } else {
+    vc.classList.remove('active');
+    $('vac-msg').textContent = 'No vacuum detected.';
+  }
+
+  // Targets (VWAP ± adaptive band)
+  if(wv && lastPrice){
+    const band = wv*(0.0015 + 0.001*Math.min(Math.abs(ofi),1));
+    const tUp = wv+band, tDn = wv-band;
+    $('t-up').textContent  = fmtP(tUp);
+    $('t-dn').textContent  = fmtP(tDn);
+    $('t-up-pct').textContent  = '+'+((tUp-lastPrice)/lastPrice*100).toFixed(3)+'%';
+    $('t-dn-pct').textContent  = ((tDn-lastPrice)/lastPrice*100).toFixed(3)+'%';
+  }
+
+  $('diag').textContent = `trades: ${tradeCount} · depth: ${depthCount} · OFI EMA: ${ofiEma.toFixed(1)}`;
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────
+let ws = null, wsAlive = false, reconnectMs = 1000;
+const WS_URL = 'wss://stream.binance.com:9443/stream?streams=btcusdt@trade/btcusdt@depth20@100ms';
+
+function connect(){
+  setStatus('warn','CONNECTING...');
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    wsAlive = true; reconnectMs = 1000;
+    setStatus('live','LIVE');
+  };
+
+  ws.onmessage = e => {
+    try{
+      const env  = JSON.parse(e.data);
+      const data = env.data || env;
+      const sn   = env.stream || '';
+
+      if(data.e === 'trade'){
+        const isBuy = !data.m; // m=true means buyer is maker → seller aggressed
+        onTrade(parseFloat(data.p), parseFloat(data.q), isBuy, data.T || Date.now());
+
+      } else if(sn.includes('@depth') || data.bids){
+        const bids = data.bids || [];
+        const asks = data.asks || [];
+        if(bids.length && asks.length){
+          bestBid = parseFloat(bids[0][0]);
+          bestAsk = parseFloat(asks[0][0]);
+          const bS  = parseFloat(bids[0][1]);
+          const aS  = parseFloat(asks[0][1]);
+          calcOFI(bestBid, bS, bestAsk, aS);
+          bidDepth = bids.slice(0,5).reduce((s,r)=>s+parseFloat(r[1]),0);
+          askDepth = asks.slice(0,5).reduce((s,r)=>s+parseFloat(r[1]),0);
+          checkVacuum(bidDepth, askDepth);
+          depthCount++;
         }
+      }
+    } catch(_){}
+  };
 
-        beast::get_lowest_layer(*stream_).expires_after(std::chrono::seconds(10));
-        beast::get_lowest_layer(*stream_).connect(results);
-
-        beast::get_lowest_layer(*stream_).expires_after(std::chrono::seconds(10));
-        stream_->handshake(ssl::stream_base::client);
-
-        beast::get_lowest_layer(*stream_).expires_never();
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "[Sentinel_CloudPublisher] connect failed: " << e.what() << "\n";
-        stream_.reset();
-        return false;
-    }
+  ws.onerror = () => { wsAlive=false; };
+  ws.onclose = () => {
+    wsAlive=false;
+    setStatus('warn','RECONNECTING...');
+    setTimeout(()=>{ reconnectMs=Math.min(reconnectMs*2,15000); connect(); }, reconnectMs);
+  };
 }
 
-bool CloudPublisher::publish(const std::string& json_body) {
-    if (!ensure_connected()) return false;
+// ── Render loop ───────────────────────────────────────────────────────────
+function loop(){ renderUI(); requestAnimationFrame(loop); }
 
-    try {
-        // No auth token needed - Firebase rules allow open writes.
-        // The path must end in ".json" per Firebase REST API spec.
-        const std::string target = cfg_.path;
+connect();
+loop();
 
-        http::request<http::string_body> req{http::verb::put, target, 11};
-        req.set(http::field::host, cfg_.host);
-        req.set(http::field::user_agent, "Sentinel-Analysis-Core/1.0 (+cpp20)");
-        req.set(http::field::content_type, "application/json");
-        req.keep_alive(true);
-        req.body() = json_body;
-        req.prepare_payload();
-
-        beast::get_lowest_layer(*stream_).expires_after(std::chrono::seconds(8));
-        http::write(*stream_, req);
-
-        beast::flat_buffer buffer;
-        http::response<http::dynamic_body> res;
-        http::read(*stream_, buffer, res);
-
-        beast::get_lowest_layer(*stream_).expires_never();
-
-        if (res.result_int() < 200 || res.result_int() >= 300) {
-            std::cerr << "[Sentinel_CloudPublisher] RTDB returned HTTP "
-                      << res.result_int() << " - check DB rules\n";
-            // Not necessarily a dead connection (could be a 401 on a healthy
-            // socket), but safest to reconnect cleanly next time.
-            reset_connection();
-            return false;
-        }
-
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "[Sentinel_CloudPublisher] publish failed: " << e.what() << "\n";
-        reset_connection();
-        return false;
-    }
-}
-
-} // namespace sentinel
+})();
+</script>
+</body>
+</html>
