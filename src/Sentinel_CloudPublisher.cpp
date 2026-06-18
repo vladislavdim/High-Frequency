@@ -53,7 +53,9 @@ bool CloudPublisher::publish(const std::string& json_body) {
     if (!ensure_connected()) return false;
 
     try {
-        const std::string target = cfg_.path + "?auth=" + cfg_.auth_secret;
+        // No auth token needed - Firebase rules allow open writes.
+        // The path must end in ".json" per Firebase REST API spec.
+        const std::string target = cfg_.path;
 
         http::request<http::string_body> req{http::verb::put, target, 11};
         req.set(http::field::host, cfg_.host);
@@ -65,7 +67,7 @@ bool CloudPublisher::publish(const std::string& json_body) {
 
         beast::get_lowest_layer(*stream_).expires_after(std::chrono::seconds(8));
         http::write(*stream_, req);
-in
+
         beast::flat_buffer buffer;
         http::response<http::dynamic_body> res;
         http::read(*stream_, buffer, res);
@@ -74,7 +76,7 @@ in
 
         if (res.result_int() < 200 || res.result_int() >= 300) {
             std::cerr << "[Sentinel_CloudPublisher] RTDB returned HTTP "
-                      << res.result_int() << " - check your auth secret / DB rules\n";
+                      << res.result_int() << " - check DB rules\n";
             // Not necessarily a dead connection (could be a 401 on a healthy
             // socket), but safest to reconnect cleanly next time.
             reset_connection();
