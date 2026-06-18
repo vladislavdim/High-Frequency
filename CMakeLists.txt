@@ -27,6 +27,7 @@ add_executable(sentinel_core
     src/Sentinel_Main.cpp
     src/Sentinel_Network.cpp
     src/Sentinel_Analysis_Core.cpp
+    src/Sentinel_CloudPublisher.cpp
 )
 
 target_include_directories(sentinel_core PRIVATE
