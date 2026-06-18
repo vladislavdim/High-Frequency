@@ -21,14 +21,18 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
 #include "Sentinel_Analysis_Core.hpp"
+#include "Sentinel_CloudPublisher.hpp"
 #include "Sentinel_LockFreeRingBuffer.hpp"
 #include "Sentinel_Network.hpp"
 #include "Sentinel_Parser.hpp"
@@ -40,7 +44,13 @@ using namespace sentinel;
 namespace net = boost::asio;
 
 constexpr std::size_t kRingBufferCapacity = 1 << 14; // 16384, power of two
-constexpr auto kPublishInterval = std::chrono::milliseconds(200);
+constexpr auto kPublishInterval = std::chrono::milliseconds(500);
+
+std::optional<std::string> env(const char* name) {
+    const char* v = std::getenv(name);
+    if (!v || std::string_view(v).empty()) return std::nullopt;
+    return std::string(v);
+}
 
 std::string direction_to_string(Direction d) {
     switch (d) {
@@ -175,11 +185,36 @@ int main(int argc, char** argv) {
         }
     });
 
-    // ---- Publisher thread ---------------------------------------------------
+    // ---- Publisher sink: cloud (Firebase RTDB) if configured, else local file ----
+    // Reads config from environment variables so the write secret never has
+    // to live in source code or get committed to a (possibly public) repo:
+    //   FIREBASE_DB_HOST   e.g. "your-project-default-rtdb.firebaseio.com"
+    //   FIREBASE_AUTH_SECRET   your Firebase legacy Database Secret
+    //   FIREBASE_DB_PATH   optional, defaults to "/smart_money.json"
+    std::optional<CloudPublisher> cloud;
+    if (auto host = env("FIREBASE_DB_HOST")) {
+        CloudPublisher::Config cloud_cfg;
+        cloud_cfg.host = *host;
+        cloud_cfg.path = env("FIREBASE_DB_PATH").value_or("/smart_money.json");
+        cloud_cfg.auth_secret = env("FIREBASE_AUTH_SECRET").value_or("");
+        if (cloud_cfg.auth_secret.empty()) {
+            std::cerr << "[Sentinel_Main] FIREBASE_DB_HOST is set but FIREBASE_AUTH_SECRET "
+                         "is missing - refusing to push unauthenticated. Falling back to "
+                         "local file output.\n";
+        } else {
+            cloud.emplace(std::move(cloud_cfg));
+            std::cout << "[Sentinel_Main] publishing to Firebase RTDB at " << *host << "\n";
+        }
+    }
+
     const std::filesystem::path out_path(output_path);
-    std::filesystem::create_directories(out_path.parent_path().empty()
-                                             ? std::filesystem::path(".")
-                                             : out_path.parent_path());
+    if (!cloud) {
+        std::filesystem::create_directories(out_path.parent_path().empty()
+                                                 ? std::filesystem::path(".")
+                                                 : out_path.parent_path());
+        std::cout << "[Sentinel_Main] FIREBASE_DB_HOST not set - writing locally to "
+                  << output_path << " instead.\n";
+    }
 
     std::thread publisher_thread([&] {
         while (running.load(std::memory_order_relaxed)) {
@@ -195,7 +230,15 @@ int main(int argc, char** argv) {
             }();
             doc["ring_buffer_dropped"] = tick_queue.dropped_count();
 
-            publish_json(out_path, doc);
+            if (cloud) {
+                if (!cloud->publish(doc.dump())) {
+                    std::cerr << "[Sentinel_Main] cloud publish failed this cycle - "
+                                 "will retry next interval\n";
+                }
+            } else {
+                publish_json(out_path, doc);
+            }
+
             std::this_thread::sleep_for(kPublishInterval);
         }
     });
