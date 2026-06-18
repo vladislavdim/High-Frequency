@@ -140,10 +140,10 @@ body {
   flex: 1;
   display: grid;
   grid-template-columns: 1fr var(--sidebar);
-  grid-template-rows: 1fr var(--bottom);
+  grid-template-rows: 1fr 26px;
   grid-template-areas:
     "chart sidebar"
-    "alerts sidebar";
+    "statusbar sidebar";
   overflow: hidden;
   min-height: 0;
   position: relative;
@@ -158,9 +158,15 @@ body {
   min-width: 0;
   min-height: 0;
   position: relative;
+  overflow: hidden;
 }
-#price-chart { flex: 1; min-height: 0; }
-#cvd-bar { height: var(--bottom); border-top: 1px solid var(--border); position: relative; }
+#price-chart {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+#price-chart > * { width: 100% !important; height: 100% !important; }
+#cvd-bar { height: 80px; border-top: 1px solid var(--border); position: relative; flex-shrink: 0; }
 #cvd-chart { width: 100%; height: 100%; }
 #cvd-label { position: absolute; top: 4px; left: 8px; font-size: 9px; color: var(--muted); z-index: 10; pointer-events: none; letter-spacing: 1px; }
 #cone-label { position: absolute; top: 4px; right: 8px; font-size: 9px; color: rgba(255,255,255,0.3); z-index: 10; pointer-events: none; letter-spacing: 1px; }
@@ -178,7 +184,7 @@ body {
 
 /* Zone 3: Bottom Panel (status bar) */
 #zone-bottom {
-  grid-area: alerts;
+  grid-area: statusbar;
   border-top: 1px solid var(--border);
   border-right: 1px solid var(--border);
   background: var(--bg2);
@@ -673,10 +679,19 @@ let priceChart, cvdChart;
 let levelLines = {};
 let lastConeUpdate = 0;
 
+function getSize(el) {
+  // Force layout flush then get real dims; fallback to window-based estimate
+  const w = el.offsetWidth || el.clientWidth || (window.innerWidth * 0.78);
+  const h = el.offsetHeight || el.clientHeight || (window.innerHeight * 0.65);
+  return { w: Math.max(w, 200), h: Math.max(h, 150) };
+}
+
 function initCharts() {
   const LC = LightweightCharts;
+  const pc = document.getElementById('price-chart');
+  const { w: pw, h: ph } = getSize(pc);
 
-  priceChart = LC.createChart(document.getElementById('price-chart'), {
+  priceChart = LC.createChart(pc, {
     layout: { background: { color: '#070a0e' }, textColor: '#3d5166' },
     grid: { vertLines: { color: '#0c1520' }, horzLines: { color: '#0c1520' } },
     crosshair: { mode: LC.CrosshairMode.Normal },
@@ -691,8 +706,8 @@ function initCharts() {
       secondsVisible: false,
       rightOffset: 25,
     },
-    width: document.getElementById('price-chart').clientWidth,
-    height: document.getElementById('price-chart').clientHeight,
+    width: pw,
+    height: ph,
   });
 
   // Candlestick
@@ -744,27 +759,36 @@ function initCharts() {
   });
 
   // CVD mini
-  cvdChart = LC.createChart(document.getElementById('cvd-chart'), {
+  const cvdEl = document.getElementById('cvd-chart');
+  const cvdBarEl = document.getElementById('cvd-bar');
+  const { w: cw } = getSize(cvdEl);
+  const ch = Math.max(cvdBarEl.offsetHeight || cvdBarEl.clientHeight || 90, 50);
+  cvdChart = LC.createChart(cvdEl, {
     layout: { background: { color: '#070a0e' }, textColor: '#3d5166' },
     grid: { vertLines: { color: 'transparent' }, horzLines: { color: '#0c1520' } },
     rightPriceScale: { borderColor: '#1a2535', scaleMargins: { top: 0.1, bottom: 0.1 } },
     timeScale: { visible: false },
-    width: document.getElementById('cvd-chart').clientWidth,
-    height: document.getElementById('cvd-bar').clientHeight,
+    width: cw,
+    height: ch,
     handleScroll: false, handleScale: false,
   });
   cvdSeries = cvdChart.addHistogramSeries({
     color: '#00e676', priceLineVisible: false, lastValueVisible: false,
   });
 
-  // ResizeObserver
-  const ro = new ResizeObserver(() => {
-    const pc = document.getElementById('price-chart');
-    const cc = document.getElementById('cvd-chart');
-    if (pc.clientWidth > 0 && pc.clientHeight > 0)
-      priceChart.resize(pc.clientWidth, pc.clientHeight);
-    if (cc.clientWidth > 0 && cc.clientHeight > 0)
-      cvdChart.resize(cc.clientWidth, cc.clientHeight);
+  // ResizeObserver — fires immediately on attach, giving us correct size
+  const ro = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const el = entry.target;
+      const w = entry.contentRect.width;
+      const h = entry.contentRect.height;
+      if (w < 10 || h < 10) continue;
+      if (el === document.getElementById('price-chart') && priceChart) {
+        priceChart.resize(w, h);
+      } else if (el === document.getElementById('cvd-bar') && cvdChart) {
+        cvdChart.resize(w, Math.max(h, 50));
+      }
+    }
   });
   ro.observe(document.getElementById('price-chart'));
   ro.observe(document.getElementById('cvd-bar'));
@@ -1265,15 +1289,74 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// BOOT
+// DEMO MODE — показывает данные если WS не подключился за 5 сек
 // ═══════════════════════════════════════════════════════════════
-initCharts();
-connect();
+function startDemoMode() {
+  if (STATE.connected) return; // WS уже работает — демо не нужно
+  console.warn('SENTINEL: WebSocket не подключился — запуск демо-режима');
+  $('status-text').textContent = 'DEMO MODE · No WS';
 
-// Initial cone render after charts init (deferred)
-setTimeout(() => {
-  if (STATE.price > 0) updateProbabilityCone();
-}, 5000);
+  // Базовая цена BTC ~близкая к реальной
+  let demoPrice = 104500 + Math.random() * 2000;
+  let demoTime = Math.floor(Date.now() / 1000);
+
+  function demoTick() {
+    if (STATE.connected) return; // Если WS подключился — стоп
+
+    const delta = (Math.random() - 0.48) * 80;
+    demoPrice = Math.max(95000, demoPrice + delta);
+    const vol = 0.05 + Math.random() * 0.5;
+    const isBuy = Math.random() > 0.5;
+    const amount = demoPrice * vol;
+
+    STATE.price = demoPrice;
+    STATE.trades++;
+    if (!STATE.sessionOpen) STATE.sessionOpen = demoPrice;
+    if (demoPrice > STATE.sessionHigh) STATE.sessionHigh = demoPrice;
+    if (demoPrice < STATE.sessionLow || STATE.sessionLow === Infinity) STATE.sessionLow = demoPrice;
+
+    if (isBuy) { STATE.cvdBuy += amount; STATE.cvdSession += amount; }
+    else        { STATE.cvdSell += amount; STATE.cvdSession -= amount; }
+
+    STATE.bidDepth = 50000000 + Math.random() * 20000000;
+    STATE.askDepth = 45000000 + Math.random() * 20000000;
+    STATE.spread = 0.5 + Math.random() * 2;
+    STATE.btcPrices.push(demoPrice);
+    if (STATE.btcPrices.length > 300) STATE.btcPrices.shift();
+
+    computeADScore();
+    updateVolZ(vol);
+    updateVWAP(demoPrice, vol);
+    updateOFI(STATE.bidDepth, STATE.askDepth);
+
+    pushTick(demoPrice);
+    pushVwap(STATE.vwap);
+    pushCvd(STATE.cvdSession);
+    updateProbabilityCone();
+
+    STATE._dirtyPrice = true;
+    STATE._dirtyBook = true;
+    scheduleRender();
+    scheduleBookRender();
+
+    setTimeout(demoTick, 300 + Math.random() * 400);
+  }
+
+  demoTick();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT — defer initCharts until after CSS Grid layout paint
+// ═══════════════════════════════════════════════════════════════
+// Используем двойной RAF чтобы CSS Grid точно отрисовался
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    initCharts();
+    connect();
+    // Если WS не подключился за 6 сек — включаем демо
+    setTimeout(startDemoMode, 6000);
+  });
+});
 
 })();
 </script>
