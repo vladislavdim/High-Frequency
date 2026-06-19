@@ -107,6 +107,14 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 .alt-flow-val { text-align: right; font-size: 10px; font-weight: bold; font-variant-numeric: tabular-nums; }
 .alt-signal { text-align: center; font-size: 7px; padding: 2px 3px; border-radius: 2px; font-weight: bold; letter-spacing: 0.5px; }
 .alt-flow-mode { font-size: 9px; margin-bottom: 7px; padding: 4px 8px; border-radius: 2px; border: 1px solid var(--border); color: var(--muted); letter-spacing: 0.5px; }
+.panel-title { display:flex; align-items:center; }
+.sl-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid var(--bg3); font-size:10px; }
+.sl-row:last-child { border-bottom:none; }
+.sl-price { font-weight:bold; font-variant-numeric:tabular-nums; }
+.sl-meta { display:flex; gap:4px; align-items:center; }
+.sl-tag { font-size:6px; padding:1px 4px; border-radius:2px; background:var(--bg3); color:var(--muted); letter-spacing:0.5px; }
+.sl-touches { font-size:8px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.sl-dist { font-size:8px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:48px; text-align:right; }
 .sb-item { display: flex; flex-direction: column; gap: 1px; }
 .sb-label { font-size: 7px; color: var(--muted); letter-spacing: 1px; }
 .sb-val { font-weight: bold; font-size: 10px; color: var(--text); font-variant-numeric: tabular-nums; }
@@ -281,6 +289,19 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
         <span class="alt-flow-val" id="link-flow">—</span>
         <span class="alt-signal" id="link-sig" style="background:#0c1018;color:var(--muted)">connecting</span>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">STRUCTURAL LEVELS · MULTI-TF<span style="margin-left:auto;font-size:7px;color:var(--muted)" id="sl-status">loading...</span></div>
+      <div style="font-size:8px;color:var(--muted);line-height:1.5;margin-bottom:8px" id="sl-disclaimer">
+        From real 4H/1H/30M/5M history. These are where price has historically reacted — not a date-stamped forecast.
+      </div>
+      <div style="font-size:8px;color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">RESISTANCE ABOVE</div>
+      <div id="sl-resistance"><div style="font-size:9px;color:var(--muted)">Loading...</div></div>
+      <div style="font-size:8px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px">SUPPORT BELOW</div>
+      <div id="sl-support"><div style="font-size:9px;color:var(--muted)">Loading...</div></div>
+      <div style="font-size:8px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px">FIB EXTENSION ZONES (4H SWING)</div>
+      <div id="sl-projection"><div style="font-size:9px;color:var(--muted)">Loading...</div></div>
     </div>
 
   </div>
@@ -975,10 +996,221 @@ function handleConnectionTimeout() {
   $('status-dot').style.background = '#ff1744';
 }
 
+// ═══════════════════════════════════════════════════════════════
+// STRUCTURAL LEVELS — multi-timeframe historical reference levels
+// ═══════════════════════════════════════════════════════════════
+// IMPORTANT — read before trusting anything this section shows:
+// Nobody can predict where BTC will be in a week, including this code.
+// What this DOES do is honest: pull real historical 4H/1H/30M/5M candles
+// from Binance, find swing highs/lows + volume nodes + anchored VWAP per
+// timeframe, and cluster the ones that line up across timeframes into
+// "levels with confluence" - prices where multiple independent timeframes
+// agree something happened before. That's a real, useful signal (price
+// statistically reacts more often at levels with history), but it is NOT
+// a forecast of where price will be on a given future date. The Fib
+// extension zones are the same idea applied forward from the most recent
+// swing - a classic reference zone many traders watch, not a prediction.
+
+const TF_CONFIG = [
+  { interval: '4h',  label: '4H',  lookbackDays: 365 * 8, pivotLook: 6 }, // full available history
+  { interval: '1h',  label: '1H',  lookbackDays: 365 * 2, pivotLook: 6 },
+  { interval: '30m', label: '30M', lookbackDays: 180,     pivotLook: 8 },
+  { interval: '5m',  label: '5M',  lookbackDays: 30,      pivotLook: 10 },
+];
+const SL_CLUSTER_TOL = 0.0025; // 0.25% — prices within this band count as "the same level"
+const SL_RATE_LIMIT_MS = 150;  // pacing between paginated REST calls
+
+async function fetchAllKlines(interval, sinceMs) {
+  const out = [];
+  let start = sinceMs;
+  const now = Date.now();
+  const limit = 1000;
+  while (start < now) {
+    const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&startTime=${start}&limit=${limit}`;
+    let rows;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      rows = await res.json();
+    } catch (e) {
+      console.warn('klines fetch failed for', interval, e);
+      break;
+    }
+    if (!rows || !rows.length) break;
+    for (const r of rows) {
+      out.push({ time: Math.floor(r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] });
+    }
+    if (rows.length < limit) break;
+    start = rows[rows.length - 1][6] + 1; // closeTime + 1ms
+    await new Promise(r => setTimeout(r, SL_RATE_LIMIT_MS));
+  }
+  return out;
+}
+
+function findSwingPivots(candles, look) {
+  const pivots = [];
+  for (let i = look; i < candles.length - look; i++) {
+    const c = candles[i];
+    let isHigh = true, isLow = true;
+    for (let j = i - look; j <= i + look; j++) {
+      if (j === i) continue;
+      if (candles[j].high >= c.high) isHigh = false;
+      if (candles[j].low <= c.low) isLow = false;
+      if (!isHigh && !isLow) break;
+    }
+    if (isHigh) pivots.push({ price: c.high, type: 'resistance', time: c.time });
+    if (isLow) pivots.push({ price: c.low, type: 'support', time: c.time });
+  }
+  return pivots;
+}
+
+function computeVolumeProfile(candles, buckets) {
+  if (!candles.length) return { poc: null, hvns: [] };
+  let min = Infinity, max = -Infinity;
+  for (const c of candles) { if (c.low < min) min = c.low; if (c.high > max) max = c.high; }
+  const bucketSize = (max - min) / buckets || 1;
+  const map = new Map();
+  for (const c of candles) {
+    const idx = Math.round(((c.high + c.low) / 2 - min) / bucketSize);
+    map.set(idx, (map.get(idx) || 0) + c.volume);
+  }
+  const entries = [...map.entries()];
+  if (!entries.length) return { poc: null, hvns: [] };
+  entries.sort((a, b) => b[1] - a[1]);
+  const avg = entries.reduce((s, [, v]) => s + v, 0) / entries.length;
+  const poc = min + entries[0][0] * bucketSize;
+  const hvns = entries.filter(([, v]) => v > avg * 1.8).slice(0, 6).map(([idx]) => min + idx * bucketSize);
+  return { poc, hvns };
+}
+
+function computeAnchoredVWAP(candles) {
+  let pv = 0, v = 0;
+  for (const c of candles) { const tp = (c.high + c.low + c.close) / 3; pv += tp * c.volume; v += c.volume; }
+  return v > 0 ? pv / v : null;
+}
+
+function clusterLevels(allLevels) {
+  const sorted = [...allLevels].sort((a, b) => a.price - b.price);
+  const clusters = [];
+  for (const lvl of sorted) {
+    let placed = false;
+    for (const cl of clusters) {
+      if (Math.abs(lvl.price - cl.avgPrice) / cl.avgPrice < SL_CLUSTER_TOL) {
+        cl.items.push(lvl);
+        cl.avgPrice = cl.items.reduce((s, it) => s + it.price, 0) / cl.items.length;
+        cl.tfs.add(lvl.tf);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) clusters.push({ avgPrice: lvl.price, items: [lvl], tfs: new Set([lvl.tf]) });
+  }
+  return clusters.map(c => ({ price: c.avgPrice, touches: c.items.length, tfs: [...c.tfs] }));
+}
+
+function findLastMajorSwing(pivots4h) {
+  if (pivots4h.length < 2) return null;
+  const sorted = [...pivots4h].sort((a, b) => a.time - b.time);
+  let best = null;
+  for (let i = sorted.length - 1; i > 0 && i > sorted.length - 25; i--) {
+    const a = sorted[i - 1], b = sorted[i];
+    if (a.type === b.type) continue;
+    const range = Math.abs(b.price - a.price);
+    if (!best || range > best.range) best = { from: a, to: b, range };
+  }
+  return best;
+}
+
+const SL_DATA = { clusters: [], projections: [] };
+
+async function buildStructuralLevels() {
+  const statusEl = $('sl-status');
+  const allLevels = [];
+  let pivots4h = [];
+
+  for (const tf of TF_CONFIG) {
+    statusEl.textContent = `fetching ${tf.label}...`;
+    const since = Date.now() - tf.lookbackDays * 86400000;
+    const candles = await fetchAllKlines(tf.interval, since);
+    if (!candles.length) continue;
+
+    const pivots = findSwingPivots(candles, tf.pivotLook);
+    if (tf.interval === '4h') pivots4h = pivots;
+    for (const p of pivots) allLevels.push({ price: p.price, tf: tf.label });
+
+    const { poc, hvns } = computeVolumeProfile(candles, 250);
+    if (poc) allLevels.push({ price: poc, tf: tf.label + ' POC' });
+    for (const h of hvns) allLevels.push({ price: h, tf: tf.label + ' HVN' });
+
+    const vwap = computeAnchoredVWAP(candles);
+    if (vwap) allLevels.push({ price: vwap, tf: tf.label + ' VWAP' });
+  }
+
+  SL_DATA.clusters = clusterLevels(allLevels);
+
+  const swing = findLastMajorSwing(pivots4h);
+  SL_DATA.projections = [];
+  if (swing) {
+    const dir = swing.to.price > swing.from.price ? 1 : -1;
+    const r = swing.range;
+    [0.618, 1.0, 1.272, 1.618].forEach(mult => {
+      SL_DATA.projections.push({ price: swing.to.price + dir * r * mult, mult });
+    });
+  }
+
+  statusEl.textContent = `${SL_DATA.clusters.length} levels · live`;
+  renderStructuralLevels();
+}
+
+function renderStructuralLevels() {
+  if (!STATE.price) return;
+  const price = STATE.price;
+
+  const above = SL_DATA.clusters
+    .filter(c => c.price > price * 1.0005)
+    .sort((a, b) => (b.tfs.length - a.tfs.length) || (a.price - b.price))
+    .slice(0, 5);
+  const below = SL_DATA.clusters
+    .filter(c => c.price < price * 0.9995)
+    .sort((a, b) => (b.tfs.length - a.tfs.length) || (b.price - a.price))
+    .slice(0, 5);
+
+  function rowHtml(c) {
+    const distPct = ((c.price - price) / price * 100);
+    const tagHtml = c.tfs.slice(0, 4).map(t => `<span class="sl-tag">${t}</span>`).join('');
+    return `<div class="sl-row">
+      <span class="sl-price mono">${fmtPrice(c.price)}</span>
+      <span class="sl-meta">${tagHtml}<span class="sl-touches">×${c.touches}</span></span>
+      <span class="sl-dist">${distPct >= 0 ? '+' : ''}${distPct.toFixed(2)}%</span>
+    </div>`;
+  }
+
+  $('sl-resistance').innerHTML = above.length ? above.map(rowHtml).join('') : '<div style="font-size:9px;color:var(--muted)">No confluence levels found above</div>';
+  $('sl-support').innerHTML = below.length ? below.map(rowHtml).join('') : '<div style="font-size:9px;color:var(--muted)">No confluence levels found below</div>';
+
+  $('sl-projection').innerHTML = SL_DATA.projections.length
+    ? SL_DATA.projections.map(p => {
+        const distPct = ((p.price - price) / price * 100);
+        return `<div class="sl-row">
+          <span class="sl-price mono" style="color:var(--gold)">${fmtPrice(p.price)}</span>
+          <span class="sl-meta"><span class="sl-tag">${p.mult}×</span></span>
+          <span class="sl-dist">${distPct >= 0 ? '+' : ''}${distPct.toFixed(2)}%</span>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:9px;color:var(--muted)">No major swing found yet</div>';
+}
+
+// Structural levels are computed from history that barely changes minute
+// to minute, so a full rebuild every ~30 min is plenty - re-render against
+// live price every few seconds instead, much cheaper.
+setInterval(() => { if (SL_DATA.clusters.length) renderStructuralLevels(); }, 5000);
+setInterval(buildStructuralLevels, 30 * 60 * 1000);
+
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     initCharts();
     connect();
+    buildStructuralLevels();
     setTimeout(handleConnectionTimeout, 8000);
   });
 });
