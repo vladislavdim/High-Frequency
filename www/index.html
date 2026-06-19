@@ -6,9 +6,6 @@
 <title>SENTINEL — BTC Smart Money v4</title>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-/* ═══════════════════════════════════════════════════════════════
-   DESIGN TOKENS
-═══════════════════════════════════════════════════════════════ */
 :root {
   --bg:       #070a0e;
   --bg2:      #0c1018;
@@ -31,282 +28,77 @@
   --tabbar:   28px;
   --status:   26px;
 }
-
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { height:100%; overflow:hidden; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 11px;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   HEADER
-═══════════════════════════════════════════════════════════════ */
-#header {
-  height: var(--header);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg2);
-  flex-shrink: 0;
-  z-index: 100;
-}
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 11px; display: flex; flex-direction: column; height: 100vh; }
+#header { height: var(--header); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; z-index: 100; }
 .logo { color: var(--cyan); font-size: 14px; font-weight: bold; letter-spacing: 4px; }
 .logo-sub { color: var(--muted); font-size: 9px; margin-left: 10px; letter-spacing: 2px; }
 #hdr-price { font-size: 24px; font-weight: bold; color: #fff; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
 #hdr-change { font-size: 11px; text-align: right; }
-.price-change.green { color: var(--green); }
-.price-change.red { color: var(--red); }
-
-/* Preset switcher */
+.price-change.green { color: var(--green); } .price-change.red { color: var(--red); }
 .preset-bar { display: flex; gap: 4px; }
-.preset-btn {
-  padding: 4px 12px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  font-family: var(--font);
-  font-size: 9px;
-  letter-spacing: 2px;
-  cursor: pointer;
-  transition: all .2s;
-  border-radius: 2px;
-}
+.preset-btn { padding: 4px 12px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); font-family: var(--font); font-size: 9px; letter-spacing: 2px; cursor: pointer; transition: all .2s; border-radius: 2px; }
 .preset-btn.active { background: #0d2040; border-color: var(--cyan); color: var(--cyan); }
 .preset-btn:hover { color: var(--text); border-color: var(--muted); }
-
-/* Status */
 .status { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--muted); letter-spacing: 1px; }
 #status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 #status-dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
-
-/* ═══════════════════════════════════════════════════════════════
-   TAB BAR
-═══════════════════════════════════════════════════════════════ */
-#tabbar {
-  height: var(--tabbar);
-  display: flex;
-  align-items: stretch;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg2);
-  flex-shrink: 0;
-}
-.tab {
-  padding: 0 14px;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 9px;
-  letter-spacing: 2px;
-  border-bottom: 2px solid transparent;
-  display: flex;
-  align-items: center;
-  transition: all .15s;
-}
+#tabbar { height: var(--tabbar); display: flex; align-items: stretch; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; }
+.tab { padding: 0 14px; cursor: pointer; color: var(--muted); font-size: 9px; letter-spacing: 2px; border-bottom: 2px solid transparent; display: flex; align-items: center; transition: all .15s; }
 .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
 .tab:hover { color: var(--text); }
 .tab-sep { width: 1px; background: var(--border); margin: 6px 0; }
-
-/* ═══════════════════════════════════════════════════════════════
-   WHALE ALERT BANNER
-═══════════════════════════════════════════════════════════════ */
-#whale-alert-banner {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 5px 16px;
-  background: rgba(255, 215, 64, 0.08);
-  border-bottom: 1px solid rgba(255, 215, 64, 0.3);
-  color: var(--gold);
-  font-size: 10px;
-  letter-spacing: 1px;
-  animation: flashBanner 0.5s ease infinite alternate;
-  flex-shrink: 0;
-}
+#whale-alert-banner { display: none; align-items: center; justify-content: center; gap: 10px; padding: 5px 16px; background: rgba(255, 215, 64, 0.08); border-bottom: 1px solid rgba(255, 215, 64, 0.3); color: var(--gold); font-size: 10px; letter-spacing: 1px; animation: flashBanner 0.5s ease infinite alternate; flex-shrink: 0; }
 @keyframes flashBanner { from { background: rgba(255,215,64,0.04); } to { background: rgba(255,215,64,0.14); } }
-
-/* ═══════════════════════════════════════════════════════════════
-   CSS GRID — MAIN LAYOUT (4 ZONES)
-═══════════════════════════════════════════════════════════════ */
-#workspace {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr var(--sidebar);
-  grid-template-rows: 1fr 26px;
-  grid-template-areas:
-    "chart sidebar"
-    "statusbar sidebar";
-  overflow: hidden;
-  min-height: 0;
-  position: relative;
-}
-
-/* Zone 1: Main Chart */
-#zone-chart {
-  grid-area: chart;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
-  min-width: 0;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-}
-#price-chart {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-}
+#workspace { flex: 1; display: grid; grid-template-columns: 1fr var(--sidebar); grid-template-rows: 1fr 26px; grid-template-areas: "chart sidebar" "statusbar sidebar"; overflow: hidden; min-height: 0; position: relative; }
+#zone-chart { grid-area: chart; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; min-height: 0; position: relative; overflow: hidden; }
+#price-chart { flex: 1; min-height: 0; width: 100%; }
 #price-chart > * { width: 100% !important; height: 100% !important; }
 #cvd-bar { height: 80px; border-top: 1px solid var(--border); position: relative; flex-shrink: 0; }
 #cvd-chart { width: 100%; height: 100%; }
 #cvd-label { position: absolute; top: 4px; left: 8px; font-size: 9px; color: var(--muted); z-index: 10; pointer-events: none; letter-spacing: 1px; }
 #cone-label { position: absolute; top: 4px; right: 8px; font-size: 9px; color: rgba(255,255,255,0.3); z-index: 10; pointer-events: none; letter-spacing: 1px; }
-
-/* Zone 2: Sidebar Stats */
-#zone-sidebar {
-  grid-area: sidebar;
-  overflow-y: auto;
-  background: var(--bg2);
-  display: flex;
-  flex-direction: column;
-}
+#zone-sidebar { grid-area: sidebar; overflow-y: auto; background: var(--bg2); display: flex; flex-direction: column; }
 #zone-sidebar::-webkit-scrollbar { width: 3px; }
 #zone-sidebar::-webkit-scrollbar-thumb { background: var(--border); }
-
-/* Zone 3: Bottom Panel (status bar) */
-#zone-bottom {
-  grid-area: statusbar;
-  border-top: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  background: var(--bg2);
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  gap: 24px;
-  flex-shrink: 0;
-}
-
-/* Zone 4: Alerts embedded in sidebar (bottom) */
-
-/* ─── DRAG RESIZE HANDLE ── */
-.resize-handle-x {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: col-resize;
-  background: transparent;
-  z-index: 200;
-  transition: background .2s;
-}
+#zone-bottom { grid-area: statusbar; border-top: 1px solid var(--border); border-right: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; padding: 0 14px; gap: 24px; flex-shrink: 0; }
+.resize-handle-x { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; background: transparent; z-index: 200; transition: background .2s; }
 .resize-handle-x:hover { background: rgba(0,229,255,0.15); }
-.resize-handle-y {
-  position: absolute;
-  bottom: var(--bottom);
-  left: 0;
-  right: 0;
-  height: 6px;
-  cursor: row-resize;
-  background: transparent;
-  z-index: 200;
-  transition: background .2s;
-}
+.resize-handle-y { position: absolute; bottom: var(--bottom); left: 0; right: 0; height: 6px; cursor: row-resize; background: transparent; z-index: 200; transition: background .2s; }
 .resize-handle-y:hover { background: rgba(0,229,255,0.15); }
-
-/* ═══════════════════════════════════════════════════════════════
-   SIDEBAR PANELS
-═══════════════════════════════════════════════════════════════ */
 .panel { border-bottom: 1px solid var(--border); padding: 10px 12px; }
-.panel-title {
-  font-size: 8px;
-  color: var(--muted);
-  letter-spacing: 3px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.panel-title { font-size: 8px; color: var(--muted); letter-spacing: 3px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .panel-title::before { content: '▪'; color: var(--cyan); }
-
-/* Institutional */
 .inst-row { display: flex; align-items: center; justify-content: space-between; }
 .inst-signal { font-size: 16px; font-weight: bold; margin: 2px 0; }
-.inst-signal.green { color: var(--green); }
-.inst-signal.red { color: var(--red); }
-.inst-signal.muted { color: var(--muted); }
+.inst-signal.green { color: var(--green); } .inst-signal.red { color: var(--red); } .inst-signal.muted { color: var(--muted); }
 #inst-meta { color: var(--muted); font-size: 9px; margin-bottom: 6px; }
-
-/* Confidence ring */
 #confidence-ring { flex-shrink: 0; }
-
-/* Bars */
 .bar-row { margin-bottom: 5px; }
 .bar-label { display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px; }
 .bar-track { height: 3px; background: #0d1520; border-radius: 2px; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 2px; transition: width .4s; }
-
-/* Grid metrics */
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 7px; }
 .metric { background: var(--bg3); border: 1px solid var(--border); border-radius: 2px; padding: 5px 8px; }
 .metric .mlabel { font-size: 7px; color: var(--muted); letter-spacing: 1px; margin-bottom: 2px; }
 .metric .mval { font-size: 12px; font-weight: bold; }
-
-/* Flow vector */
 #flow-bar-wrap { display: flex; align-items: center; gap: 6px; margin: 5px 0; font-size: 9px; }
 #flow-in, #flow-out { flex: 1; }
-#flow-in { color: var(--green); }
-#flow-out { color: var(--red); text-align: right; }
+#flow-in { color: var(--green); } #flow-out { color: var(--red); text-align: right; }
 .flow-lbl { color: var(--muted); font-size: 8px; }
 #flow-track { flex: 2; height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; position: relative; }
 #flow-needle { position: absolute; top: 0; height: 100%; border-radius: 3px; transition: all .4s; }
-
-/* Targets */
-.target-row {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 6px 10px;
-  margin-bottom: 5px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: box-shadow .3s, border-color .3s;
-}
-.target-row.whale-alert {
-  border-color: var(--gold);
-  box-shadow: 0 0 12px rgba(255,215,64,0.2);
-}
+.target-row { background: var(--bg3); border: 1px solid var(--border); border-radius: 2px; padding: 6px 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; transition: box-shadow .3s, border-color .3s; }
+.target-row.whale-alert { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,215,64,0.2); }
 .t-label { font-size: 8px; color: var(--muted); letter-spacing: 1px; }
 .t-price { font-size: 13px; font-weight: bold; font-variant-numeric: tabular-nums; }
-.t-price.green { color: var(--green); }
-.t-price.red { color: var(--red); }
-.t-price.purple { color: var(--purple); }
+.t-price.green { color: var(--green); } .t-price.red { color: var(--red); } .t-price.purple { color: var(--purple); }
 .t-meta { text-align: right; }
 .t-conf { font-size: 11px; font-weight: bold; }
-.t-conf.green { color: var(--green); }
-.t-conf.red { color: var(--red); }
-.t-conf.purple { color: var(--purple); }
-.vacuum-row {
-  font-size: 9px;
-  color: var(--muted);
-  padding: 5px 0;
-  border-top: 1px solid var(--border);
-  margin-top: 3px;
-  transition: color .3s;
-  letter-spacing: 0.5px;
-}
-
-/* Alt heatmap */
+.t-conf.green { color: var(--green); } .t-conf.red { color: var(--red); } .t-conf.purple { color: var(--purple); }
+.vacuum-row { font-size: 9px; color: var(--muted); padding: 5px 0; border-top: 1px solid var(--border); margin-top: 3px; transition: color .3s; letter-spacing: 0.5px; }
 .alt-col-headers { display: grid; grid-template-columns: 38px 1fr 58px 78px; gap: 5px; margin-bottom: 4px; font-size: 7px; color: var(--muted); letter-spacing: 1px; }
 .alt-row { display: grid; grid-template-columns: 38px 1fr 58px 78px; gap: 5px; align-items: center; margin-bottom: 5px; font-size: 9px; }
 .alt-name { font-weight: bold; font-size: 10px; }
@@ -315,41 +107,22 @@ body {
 .alt-flow-val { text-align: right; font-size: 10px; font-weight: bold; font-variant-numeric: tabular-nums; }
 .alt-signal { text-align: center; font-size: 7px; padding: 2px 3px; border-radius: 2px; font-weight: bold; letter-spacing: 0.5px; }
 .alt-flow-mode { font-size: 9px; margin-bottom: 7px; padding: 4px 8px; border-radius: 2px; border: 1px solid var(--border); color: var(--muted); letter-spacing: 0.5px; }
-
-/* ═══════════════════════════════════════════════════════════════
-   BOTTOM STATUS BAR (Zone 3)
-═══════════════════════════════════════════════════════════════ */
 .sb-item { display: flex; flex-direction: column; gap: 1px; }
 .sb-label { font-size: 7px; color: var(--muted); letter-spacing: 1px; }
 .sb-val { font-weight: bold; font-size: 10px; color: var(--text); font-variant-numeric: tabular-nums; }
-.sb-val.cyan { color: var(--cyan); }
-.sb-val.gold { color: var(--gold); }
-
-/* ─── UTIL COLORS ── */
-.green  { color: var(--green); }
-.red    { color: var(--red); }
-.gold   { color: var(--gold); }
-.purple { color: var(--purple); }
-.blue   { color: var(--blue); }
-.cyan   { color: var(--cyan); }
-
-/* ─── CONE LEGEND ── */
-.cone-legend {
-  position: absolute;
-  bottom: 6px;
-  left: 10px;
-  display: flex;
-  gap: 12px;
-  z-index: 10;
-  pointer-events: none;
-}
+.sb-val.cyan { color: var(--cyan); } .sb-val.gold { color: var(--gold); }
+.green  { color: var(--green); } .red    { color: var(--red); } .gold   { color: var(--gold); } .purple { color: var(--purple); } .blue   { color: var(--blue); } .cyan   { color: var(--cyan); }
+.cone-legend { position: absolute; bottom: 6px; left: 10px; display: flex; gap: 12px; z-index: 10; pointer-events: none; }
 .cone-item { display: flex; align-items: center; gap: 5px; font-size: 8px; color: var(--muted); letter-spacing: 1px; }
 .cone-dot { width: 8px; height: 3px; border-radius: 2px; }
+.demo-banner { display:none; position:fixed; top:0; left:0; right:0; z-index:500; background:repeating-linear-gradient(45deg,#3d0f0f,#3d0f0f 10px,#2a0a0a 10px,#2a0a0a 20px); color:#ff5050; text-align:center; font-weight:bold; font-size:12px; letter-spacing:2px; padding:6px; border-bottom:2px solid #ff1744; }
+#disclaimer-footer { flex-shrink:0; height:22px; display:flex; align-items:center; justify-content:center; font-size:8px; color:var(--muted); letter-spacing:0.5px; border-top:1px solid var(--border); background:var(--bg2); }
 </style>
 </head>
 <body>
 
-<!-- ═══ HEADER ═══════════════════════════════════════════════════════ -->
+<div class="demo-banner" id="demo-banner">⚠ DEMO / SIMULATED DATA — NOT LIVE MARKET DATA — DO NOT TRADE ON THIS ⚠</div>
+
 <div id="header">
   <div style="display:flex;align-items:center;gap:8px">
     <span class="logo">SENTINEL</span>
@@ -369,7 +142,6 @@ body {
   </div>
 </div>
 
-<!-- ═══ TAB BAR ══════════════════════════════════════════════════════ -->
 <div id="tabbar">
   <div class="tab active" data-tab="price">PRICE · VWAP</div>
   <div class="tab-sep"></div>
@@ -380,39 +152,29 @@ body {
   <div class="tab" data-tab="cone" style="color:rgba(255,255,255,0.35)">PROB CONE ⟶</div>
 </div>
 
-<!-- ═══ WHALE ALERT BANNER ══════════════════════════════════════════ -->
 <div id="whale-alert-banner">
   <span style="font-size:14px">⚡</span>
   <span id="whale-alert-text"></span>
   <span style="font-size:14px">⚡</span>
 </div>
 
-<!-- ═══ WORKSPACE (CSS GRID) ════════════════════════════════════════ -->
 <div id="workspace">
-
-  <!-- Zone 1: Main Chart -->
   <div id="zone-chart">
     <div id="price-chart" style="flex:1"></div>
-    <!-- Cone legend overlay -->
     <div class="cone-legend">
       <div class="cone-item"><div class="cone-dot" style="background:rgba(0,230,118,0.5)"></div>BULL CONE</div>
       <div class="cone-item"><div class="cone-dot" style="background:rgba(255,23,68,0.5)"></div>BEAR CONE</div>
       <div class="cone-item"><div class="cone-dot" style="background:rgba(255,255,255,0.8)"></div>PREDICTION →</div>
     </div>
     <div id="cone-label">PROBABILITY CONE · 15 MIN FORWARD</div>
-    <!-- CVD mini chart -->
     <div id="cvd-bar">
       <div id="cvd-label">CVD SESSION</div>
       <div id="cvd-chart"></div>
     </div>
-    <!-- Drag resize handles -->
     <div class="resize-handle-x" id="rh-x" title="Drag to resize sidebar"></div>
   </div>
 
-  <!-- Zone 2: Sidebar Stats -->
   <div id="zone-sidebar">
-
-    <!-- INSTITUTIONAL -->
     <div class="panel">
       <div class="panel-title">INSTITUTIONAL DIRECTION</div>
       <div class="inst-row">
@@ -447,7 +209,6 @@ body {
       </div>
     </div>
 
-    <!-- FLOW VECTOR -->
     <div class="panel">
       <div class="panel-title">FLOW VECTOR</div>
       <div id="flow-bar-wrap">
@@ -463,7 +224,6 @@ body {
       </div>
     </div>
 
-    <!-- GLOBAL TARGETS -->
     <div class="panel">
       <div class="panel-title">TARGETS · PREDICTION ENGINE</div>
       <div class="target-row" id="target-up-box">
@@ -499,7 +259,6 @@ body {
       <div class="vacuum-row" id="vacuum-info">Analyzing Order Book Depth...</div>
     </div>
 
-    <!-- ALT HEATMAP -->
     <div class="panel">
       <div class="panel-title">ALTCOIN LIQUIDITY HEATMAP</div>
       <div class="alt-flow-mode" id="alt-flow-mode">BTC FLOW: Analyzing...</div>
@@ -524,9 +283,8 @@ body {
       </div>
     </div>
 
-  </div><!-- /zone-sidebar -->
+  </div>
 
-  <!-- Zone 3: Bottom Status Bar -->
   <div id="zone-bottom">
     <div class="sb-item"><span class="sb-label">SESSION VWAP</span><span class="sb-val cyan" id="sb-vwap">—</span></div>
     <div class="sb-item"><span class="sb-label">VOL Z-SCORE</span><span class="sb-val" id="sb-zscore">0.00</span></div>
@@ -540,21 +298,14 @@ body {
     </div>
   </div>
 
-</div><!-- /workspace -->
+</div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     MAIN APPLICATION SCRIPT (inline ES-module approach)
-═══════════════════════════════════════════════════════════════ -->
+<div id="disclaimer-footer">OFI · CVD · A/D heuristics from session data only — signal strength, not a guaranteed forecast — not financial advice</div>
+
 <script>
-// ─── Since we're single-file (for browser compatibility without bundler),
-//     we inline all module logic below in IIFE namespaces.
-
 (function() {
 'use strict';
 
-// ═══════════════════════════════════════════════════════════════
-// STATE — Single source of truth
-// ═══════════════════════════════════════════════════════════════
 const STATE = {
   price: 0, prevPrice: 0, sessionOpen: 0,
   vwapNum: 0, vwapDen: 0, vwap: 0,
@@ -572,15 +323,11 @@ const STATE = {
   whalePredictionOverride: null,
   connected: false,
   preset: 'scalping',
-  // Dirty flags
   _dirtyPrice: false,
   _dirtyBook: false,
   _dirtyWhale: false,
 };
 
-// ═══════════════════════════════════════════════════════════════
-// DATA PROCESSOR — Math engine
-// ═══════════════════════════════════════════════════════════════
 function updateVWAP(price, vol) {
   STATE.vwapNum += price * vol;
   STATE.vwapDen += vol;
@@ -666,9 +413,6 @@ function altTransmission(coin) {
   return 'NEUTRAL';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// CHART ENGINE
-// ═══════════════════════════════════════════════════════════════
 const CANDLE_SEC = { scalping: 60, swing: 900 };
 let candleSec = 60;
 let currentCandle = null, currentCandleTime = 0;
@@ -680,7 +424,6 @@ let levelLines = {};
 let lastConeUpdate = 0;
 
 function getSize(el) {
-  // Force layout flush then get real dims; fallback to window-based estimate
   const w = el.offsetWidth || el.clientWidth || (window.innerWidth * 0.78);
   const h = el.offsetHeight || el.clientHeight || (window.innerHeight * 0.65);
   return { w: Math.max(w, 200), h: Math.max(h, 150) };
@@ -695,29 +438,17 @@ function initCharts() {
     layout: { background: { color: '#070a0e' }, textColor: '#3d5166' },
     grid: { vertLines: { color: '#0c1520' }, horzLines: { color: '#0c1520' } },
     crosshair: { mode: LC.CrosshairMode.Normal },
-    rightPriceScale: {
-      borderColor: '#1a2535',
-      textColor: '#3d5166',
-      scaleMargins: { top: 0.06, bottom: 0.1 },
-    },
-    timeScale: {
-      borderColor: '#1a2535',
-      timeVisible: true,
-      secondsVisible: false,
-      rightOffset: 25,
-    },
-    width: pw,
-    height: ph,
+    rightPriceScale: { borderColor: '#1a2535', textColor: '#3d5166', scaleMargins: { top: 0.06, bottom: 0.1 } },
+    timeScale: { borderColor: '#1a2535', timeVisible: true, secondsVisible: false, rightOffset: 25 },
+    width: pw, height: ph,
   });
 
-  // Candlestick
   priceSeries = priceChart.addCandlestickSeries({
     upColor: '#00e676', downColor: '#ff1744',
     borderUpColor: '#00e676', borderDownColor: '#ff1744',
     wickUpColor: '#00e676', wickDownColor: '#ff1744',
   });
 
-  // VWAP
   vwapSeries = priceChart.addLineSeries({
     color: '#00b0ff', lineWidth: 1,
     lineStyle: LightweightCharts.LineStyle.Dashed,
@@ -725,40 +456,25 @@ function initCharts() {
     crosshairMarkerVisible: false,
   });
 
-  // PROBABILITY CONE — upper (bullish area)
   coneUpperSeries = priceChart.addAreaSeries({
-    topColor: 'rgba(0,230,118,0.10)',
-    bottomColor: 'rgba(0,230,118,0.02)',
-    lineColor: 'rgba(0,230,118,0.30)',
-    lineWidth: 1,
+    topColor: 'rgba(0,230,118,0.10)', bottomColor: 'rgba(0,230,118,0.02)',
+    lineColor: 'rgba(0,230,118,0.30)', lineWidth: 1,
     lineStyle: LightweightCharts.LineStyle.Dotted,
-    priceLineVisible: false,
-    lastValueVisible: false,
-    crosshairMarkerVisible: false,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
   });
 
-  // PROBABILITY CONE — lower (bearish area)
   coneLowerSeries = priceChart.addAreaSeries({
-    topColor: 'rgba(255,23,68,0.02)',
-    bottomColor: 'rgba(255,23,68,0.10)',
-    lineColor: 'rgba(255,23,68,0.30)',
-    lineWidth: 1,
+    topColor: 'rgba(255,23,68,0.02)', bottomColor: 'rgba(255,23,68,0.10)',
+    lineColor: 'rgba(255,23,68,0.30)', lineWidth: 1,
     lineStyle: LightweightCharts.LineStyle.Dotted,
-    priceLineVisible: false,
-    lastValueVisible: false,
-    crosshairMarkerVisible: false,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
   });
 
-  // PREDICTION LINE — white, drawn ahead of price into future
   predictionSeries = priceChart.addLineSeries({
-    color: 'rgba(255,255,255,0.85)',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-    crosshairMarkerVisible: true,
+    color: 'rgba(255,255,255,0.85)', lineWidth: 2,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: true,
   });
 
-  // CVD mini
   const cvdEl = document.getElementById('cvd-chart');
   const cvdBarEl = document.getElementById('cvd-bar');
   const { w: cw } = getSize(cvdEl);
@@ -768,15 +484,11 @@ function initCharts() {
     grid: { vertLines: { color: 'transparent' }, horzLines: { color: '#0c1520' } },
     rightPriceScale: { borderColor: '#1a2535', scaleMargins: { top: 0.1, bottom: 0.1 } },
     timeScale: { visible: false },
-    width: cw,
-    height: ch,
+    width: cw, height: ch,
     handleScroll: false, handleScale: false,
   });
-  cvdSeries = cvdChart.addHistogramSeries({
-    color: '#00e676', priceLineVisible: false, lastValueVisible: false,
-  });
+  cvdSeries = cvdChart.addHistogramSeries({ color: '#00e676', priceLineVisible: false, lastValueVisible: false });
 
-  // ResizeObserver — fires immediately on attach, giving us correct size
   const ro = new ResizeObserver(entries => {
     for (const entry of entries) {
       const el = entry.target;
@@ -826,12 +538,9 @@ function pushCvd(cvdVal) {
   cvdSeries.update({ time: t, value: cvdVal, color });
 }
 
-// ─── PROBABILITY CONE + PREDICTION LINE ──────────────────────────────
-// This draws the white line and cone AHEAD of the current price
-// giving a visual forecast of where price may move in the next 15 candles.
 function updateProbabilityCone() {
   const now = Date.now();
-  if (now - lastConeUpdate < 3000) return; // Throttle: update every 3s
+  if (now - lastConeUpdate < 3000) return;
   lastConeUpdate = now;
 
   const { price, vwap, sessionHigh, sessionLow, adScore, ofiEma } = STATE;
@@ -841,15 +550,12 @@ function updateProbabilityCone() {
   const steps = 15;
   const range = sessionHigh - sessionLow || price * 0.02;
 
-  // Direction bias from A/D + OFI
   const bias = adScore * 0.6 + ofiEma * 0.4;
   const totalMove = range * 0.618 * bias;
   const stepMove = totalMove / steps;
 
-  // Volatility: cone widens over time (sqrt of time ~ random walk)
   const baseSpread = range * 0.08;
 
-  // Current candle anchor point
   const anchorTime = currentCandleTime || Math.floor(nowSec / candleSec) * candleSec;
   const anchorPrice = currentCandle ? currentCandle.close : price;
 
@@ -866,7 +572,6 @@ function updateProbabilityCone() {
     lower.push({ time: t, value: midPrice - spread });
   }
 
-  // Override with whale prediction if active
   const ov = STATE.whalePredictionOverride;
   const finalMid = ov ? mid.map((pt, i) => ({
     time: pt.time,
@@ -877,7 +582,6 @@ function updateProbabilityCone() {
   safeSetData(coneUpperSeries, upper);
   safeSetData(coneLowerSeries, lower);
 
-  // Horizontal level lines
   const tgts = computeTargets();
   if (tgts) updateLevelLines(tgts.levels);
 }
@@ -924,9 +628,6 @@ function resetChartForPreset(preset) {
   levelLines = {};
 }
 
-// ═══════════════════════════════════════════════════════════════
-// UI CONTROLLER — Reactive rendering via dirty flags + RAF
-// ═══════════════════════════════════════════════════════════════
 const fmtK = n => {
   if (Math.abs(n)>=1e6) return '$'+(n/1e6).toFixed(2)+'M';
   if (Math.abs(n)>=1e3) return '$'+(n/1e3).toFixed(1)+'K';
@@ -956,7 +657,6 @@ function renderPrice() {
   if (!STATE._dirtyPrice) return;
   STATE._dirtyPrice = false;
 
-  // Header
   const { price, sessionOpen } = STATE;
   if (!price) return;
   $('hdr-price').textContent = fmtPrice(price);
@@ -969,7 +669,6 @@ function renderPrice() {
     el.className = 'price-change '+(chg>=0?'green':'red');
   }
 
-  // Institutional signal
   const { adScore, cvdBuy, cvdSell, cvdSession } = STATE;
   let sig, sigCls;
   if (adScore>0.4)       { sig='STRONG BUY';   sigCls='green'; }
@@ -980,7 +679,6 @@ function renderPrice() {
   if (cache.sig !== sig) { cache.sig=sig; const el=$('inst-signal'); el.textContent=sig; el.className='inst-signal '+sigCls; }
   $('inst-meta').textContent = `A/D: ${adScore.toFixed(3)} | CVD Δ: ${cvdSession>=0?'+':''}${Math.round(cvdSession)}`;
 
-  // Confidence ring
   const conf = computeConfidence();
   if (cache.conf !== conf) {
     cache.conf = conf;
@@ -991,7 +689,6 @@ function renderPrice() {
     $('conf-text').textContent = conf+'%';
   }
 
-  // CVD bars
   const total = cvdBuy+cvdSell;
   const bPct = total>0?cvdBuy/total*100:0;
   const sPct = total>0?cvdSell/total*100:0;
@@ -1005,7 +702,6 @@ function renderPrice() {
   $('accum-bar').style.width = acc+'%';
   $('distr-bar').style.width = (100-acc)+'%';
 
-  // Flow vector
   $('flow-in').innerHTML = fmtK(cvdBuy)+'<br><span class="flow-lbl">INFLOW</span>';
   $('flow-out').innerHTML = fmtK(cvdSell)+'<br><span class="flow-lbl">OUTFLOW</span>';
   const bias = total>0?cvdBuy/total:0.5;
@@ -1013,7 +709,6 @@ function renderPrice() {
   if (bias>0.5) { needle.style.left='50%'; needle.style.right=(100-bias*100)+'%'; needle.style.background='var(--green)'; }
   else { needle.style.left=(bias*100)+'%'; needle.style.right='0'; needle.style.background='var(--red)'; }
 
-  // Targets
   const tgts = computeTargets();
   if (tgts) {
     const pPct = t => { const p=(t-price)/price*100; return (p>=0?'+':'')+p.toFixed(3)+'%'; };
@@ -1048,7 +743,6 @@ function renderPrice() {
       $('tgt-dn-pct').style.color='var(--red)';
     }
 
-    // Vacuum
     const { bidDepth, askDepth } = STATE;
     const r = bidDepth>0?askDepth/bidDepth:1;
     let vm='No vacuum — Market depth normal', vw=false;
@@ -1059,28 +753,25 @@ function renderPrice() {
     $('vacuum-info').style.color=vw?'var(--gold)':'var(--muted)';
   }
 
-  // Whale banner
   const wb = $('whale-alert-banner');
-  const ov = STATE.whalePredictionOverride;
-  if (ov) {
+  const ov2 = STATE.whalePredictionOverride;
+  if (ov2) {
     wb.style.display='flex';
     $('whale-alert-text').textContent =
-      `⚡ WHALE ${ov.dir==='UP'?'BUY':'SELL'} DETECTED — TARGET: ${fmtPrice(ov.target)} (${ov.pct}%)`;
+      `⚡ WHALE ${ov2.dir==='UP'?'BUY':'SELL'} DETECTED — TARGET: ${fmtPrice(ov2.target)} (${ov2.pct}%)`;
   } else {
     wb.style.display='none';
   }
 
-  // Status bar
-  const { zScore, cvdSession, ofiEma, spread, trades, whales, vwap } = STATE;
+  const { zScore, ofiEma, spread, trades, whales, vwap } = STATE;
   $('sb-vwap').textContent = vwap ? fmtPrice(vwap) : '—';
   const zEl=$('sb-zscore'); zEl.textContent=zScore.toFixed(2); zEl.style.color=Math.abs(zScore)>2?'#ffd740':'var(--text)';
-  const cvdEl=$('sb-cvd'); cvdEl.textContent=(cvdSession>=0?'+':'')+Math.round(cvdSession); cvdEl.style.color=cvdSession>=0?'#00e676':'#ff1744';
+  const cvdEl2=$('sb-cvd'); cvdEl2.textContent=(STATE.cvdSession>=0?'+':'')+Math.round(STATE.cvdSession); cvdEl2.style.color=STATE.cvdSession>=0?'#00e676':'#ff1744';
   $('sb-ofi').textContent=ofiEma.toFixed(4);
   $('sb-spread').textContent='$'+spread.toFixed(2);
   $('sb-trades').textContent=trades.toLocaleString();
   $('sb-whales').textContent=whales;
 
-  // Alts (throttled to 3s)
   if (Date.now()-altThrottle > 3000) {
     altThrottle = Date.now();
     renderAlts();
@@ -1124,9 +815,6 @@ function renderAlts() {
   $('alt-flow-mode').textContent='BTC FLOW: '+m;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// WEBSOCKET CONNECTION
-// ═══════════════════════════════════════════════════════════════
 let whaleTimer = null;
 
 function connect() {
@@ -1143,12 +831,12 @@ function connect() {
     STATE.connected = true;
     $('status-dot').className = 'live';
     $('status-text').textContent = 'LIVE · CONNECTED';
+    $('demo-banner').style.display = 'none';
   };
 
   ws.onmessage = e => {
     const { stream, data } = JSON.parse(e.data);
 
-    // ── DEPTH (ORDER BOOK) ──
     if (stream.includes('depth20')) {
       let bv=0, av=0;
       data.bids.forEach(([p,q])=>{ bv+=parseFloat(p)*parseFloat(q); });
@@ -1166,12 +854,10 @@ function connect() {
     const isBuyerMaker = data.m;
     const amount = price * vol;
 
-    // ── ALT TRADES ──
     if (stream.includes('ethusdt'))  { STATE.altPrices.ETH.push(price); if(STATE.altPrices.ETH.length>100) STATE.altPrices.ETH.shift(); STATE.altCvd.ETH+=isBuyerMaker?-amount:amount; return; }
     if (stream.includes('solusdt'))  { STATE.altPrices.SOL.push(price); if(STATE.altPrices.SOL.length>100) STATE.altPrices.SOL.shift(); STATE.altCvd.SOL+=isBuyerMaker?-amount:amount; return; }
     if (stream.includes('linkusdt')) { STATE.altPrices.LINK.push(price); if(STATE.altPrices.LINK.length>100) STATE.altPrices.LINK.shift(); STATE.altCvd.LINK+=isBuyerMaker?-amount:amount; return; }
 
-    // ── BTC TRADE ──
     STATE.price = price;
     STATE.trades++;
     if (!STATE.sessionOpen) STATE.sessionOpen = price;
@@ -1188,7 +874,6 @@ function connect() {
     updateVolZ(vol);
     updateVWAP(price, vol);
 
-    // Whale detection: >$100k single trade
     if (amount > 100000) {
       STATE.whales++;
       const oppDepth = isBuyerMaker ? (STATE.bidDepth||1) : (STATE.askDepth||1);
@@ -1200,12 +885,10 @@ function connect() {
       whaleTimer = setTimeout(() => { STATE.whalePredictionOverride = null; }, 15000);
     }
 
-    // Chart updates
     pushTick(price);
     pushVwap(STATE.vwap);
     pushCvd(STATE.cvdSession);
 
-    // Update probability cone (throttled internally)
     updateProbabilityCone();
 
     STATE._dirtyPrice = true;
@@ -1221,9 +904,6 @@ function connect() {
   };
 }
 
-// ═══════════════════════════════════════════════════════════════
-// PRESET SWITCHER
-// ═══════════════════════════════════════════════════════════════
 const PRESET_INFO = {
   scalping: 'PRESET: SCALPING · 1M CANDLES · FAST FLOW',
   swing:    'PRESET: SWING · 15M CANDLES · KEY LEVELS',
@@ -1237,16 +917,12 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
     document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset===preset));
     resetChartForPreset(preset);
     $('sb-preset-info').textContent = PRESET_INFO[preset] || '';
-    // Reset session state
     STATE.sessionOpen=0; STATE.sessionHigh=0; STATE.sessionLow=Infinity;
     STATE.vwapNum=0; STATE.vwapDen=0; STATE.vwap=0;
     STATE.cvdBuy=0; STATE.cvdSell=0; STATE.cvdSession=0;
   });
 });
 
-// ═══════════════════════════════════════════════════════════════
-// DRAG RESIZE — sidebar width & chart/cvd split
-// ═══════════════════════════════════════════════════════════════
 (function initResize() {
   const rhX = $('rh-x');
   const workspace = $('workspace');
@@ -1276,85 +952,34 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
   });
 })();
 
-// ═══════════════════════════════════════════════════════════════
-// TAB BAR
-// ═══════════════════════════════════════════════════════════════
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    // Tabs just serve as visual indicators here;
-    // chart always shows all overlays simultaneously.
   });
 });
 
-// ═══════════════════════════════════════════════════════════════
-// DEMO MODE — показывает данные если WS не подключился за 5 сек
-// ═══════════════════════════════════════════════════════════════
-function startDemoMode() {
-  if (STATE.connected) return; // WS уже работает — демо не нужно
-  console.warn('SENTINEL: WebSocket не подключился — запуск демо-режима');
-  $('status-text').textContent = 'DEMO MODE · No WS';
-
-  // Базовая цена BTC ~близкая к реальной
-  let demoPrice = 104500 + Math.random() * 2000;
-  let demoTime = Math.floor(Date.now() / 1000);
-
-  function demoTick() {
-    if (STATE.connected) return; // Если WS подключился — стоп
-
-    const delta = (Math.random() - 0.48) * 80;
-    demoPrice = Math.max(95000, demoPrice + delta);
-    const vol = 0.05 + Math.random() * 0.5;
-    const isBuy = Math.random() > 0.5;
-    const amount = demoPrice * vol;
-
-    STATE.price = demoPrice;
-    STATE.trades++;
-    if (!STATE.sessionOpen) STATE.sessionOpen = demoPrice;
-    if (demoPrice > STATE.sessionHigh) STATE.sessionHigh = demoPrice;
-    if (demoPrice < STATE.sessionLow || STATE.sessionLow === Infinity) STATE.sessionLow = demoPrice;
-
-    if (isBuy) { STATE.cvdBuy += amount; STATE.cvdSession += amount; }
-    else        { STATE.cvdSell += amount; STATE.cvdSession -= amount; }
-
-    STATE.bidDepth = 50000000 + Math.random() * 20000000;
-    STATE.askDepth = 45000000 + Math.random() * 20000000;
-    STATE.spread = 0.5 + Math.random() * 2;
-    STATE.btcPrices.push(demoPrice);
-    if (STATE.btcPrices.length > 300) STATE.btcPrices.shift();
-
-    computeADScore();
-    updateVolZ(vol);
-    updateVWAP(demoPrice, vol);
-    updateOFI(STATE.bidDepth, STATE.askDepth);
-
-    pushTick(demoPrice);
-    pushVwap(STATE.vwap);
-    pushCvd(STATE.cvdSession);
-    updateProbabilityCone();
-
-    STATE._dirtyPrice = true;
-    STATE._dirtyBook = true;
-    scheduleRender();
-    scheduleBookRender();
-
-    setTimeout(demoTick, 300 + Math.random() * 400);
-  }
-
-  demoTick();
+// ── Connection fallback ─────────────────────────────────────────────────
+// NOTE: the original version of this file generated fake, random price
+// action here and fed it through the exact same UI as live data if the
+// WebSocket failed to connect - including fabricated "WHALE BUY DETECTED"
+// alerts and "STRONG BUY/SELL" institutional signals computed from
+// Math.random(). That's a real problem: those panels look identical to
+// real signals, so a fake whale alert or fake confidence score is
+// genuinely misleading, not just a cosmetic placeholder. It's been removed
+// entirely. If the socket can't connect, the dashboard now says so plainly
+// instead of inventing market activity.
+function handleConnectionTimeout() {
+  if (STATE.connected) return;
+  $('status-text').textContent = 'COULD NOT CONNECT — check connection';
+  $('status-dot').style.background = '#ff1744';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// BOOT — defer initCharts until after CSS Grid layout paint
-// ═══════════════════════════════════════════════════════════════
-// Используем двойной RAF чтобы CSS Grid точно отрисовался
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     initCharts();
     connect();
-    // Если WS не подключился за 6 сек — включаем демо
-    setTimeout(startDemoMode, 6000);
+    setTimeout(handleConnectionTimeout, 8000);
   });
 });
 
