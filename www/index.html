@@ -157,7 +157,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
   <div class="tab-sep"></div>
   <div class="tab" data-tab="levels">LEVELS</div>
   <div class="tab-sep"></div>
-  <div class="tab" data-tab="cone" style="color:rgba(255,255,255,0.35)">PROB CONE ⟶</div>
+  <div class="tab" data-tab="cone" style="color:rgba(255,255,255,0.35)">LIQUIDITY VECTOR ⟶</div>
 </div>
 
 <div id="whale-alert-banner">
@@ -170,11 +170,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
   <div id="zone-chart">
     <div id="price-chart" style="flex:1"></div>
     <div class="cone-legend">
-      <div class="cone-item"><div class="cone-dot" style="background:rgba(0,230,118,0.5)"></div>BULL CONE</div>
-      <div class="cone-item"><div class="cone-dot" style="background:rgba(255,23,68,0.5)"></div>BEAR CONE</div>
-      <div class="cone-item"><div class="cone-dot" style="background:rgba(255,255,255,0.8)"></div>PREDICTION →</div>
+      <div class="cone-item"><div class="cone-dot" style="background:rgba(0,230,118,0.5)"></div>UNCERTAINTY (toward buy-side)</div>
+      <div class="cone-item"><div class="cone-dot" style="background:rgba(255,23,68,0.5)"></div>UNCERTAINTY (toward sell-side)</div>
+      <div class="cone-item"><div class="cone-dot" style="background:rgba(255,255,255,0.8)"></div>MAGNET VECTOR</div>
     </div>
-    <div id="cone-label">PROBABILITY CONE · 15 MIN FORWARD</div>
+    <div id="cone-label">LIQUIDITY MAGNET VECTOR · NOT A TIMED FORECAST</div>
     <div id="cvd-bar">
       <div id="cvd-label">CVD SESSION</div>
       <div id="cvd-chart"></div>
@@ -230,6 +230,20 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
         <div class="metric"><div class="mlabel">OFI NORM</div><div class="mval" id="ofi-val">—</div></div>
         <div class="metric"><div class="mlabel">A/D SCORE</div><div class="mval" id="ad-score">—</div></div>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">LIQUIDITY MAGNET · ORDER BOOK PHYSICS</div>
+      <div style="font-size:8px;color:var(--muted);line-height:1.5;margin-bottom:8px">
+        Dynamic Balance = Bid$−Ask$ + decayed CVD. RoC = how fast each side is being pulled. The vector re-aims live — not a timed prediction.
+      </div>
+      <div class="grid2">
+        <div class="metric"><div class="mlabel">DYNAMIC BALANCE</div><div class="mval" id="lm-balance">—</div></div>
+        <div class="metric"><div class="mlabel">MAGNET STRENGTH</div><div class="mval" id="lm-strength">—</div></div>
+        <div class="metric"><div class="mlabel">BID RoC</div><div class="mval cyan" id="lm-bid-roc">—</div></div>
+        <div class="metric"><div class="mlabel">ASK RoC</div><div class="mval red" id="lm-ask-roc">—</div></div>
+      </div>
+      <div id="lm-target" style="margin-top:8px;font-size:9px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px 8px;line-height:1.5">Building magnet model...</div>
     </div>
 
     <div class="panel">
@@ -292,13 +306,14 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
     </div>
 
     <div class="panel">
-      <div class="panel-title">STRUCTURAL LEVELS · MULTI-TF<span style="margin-left:auto;font-size:7px;color:var(--muted)" id="sl-status">loading...</span></div>
+      <div class="panel-title">LIQUIDITY MAP · MULTI-TF<span style="margin-left:auto;font-size:7px;color:var(--muted)" id="sl-status">loading...</span></div>
       <div style="font-size:8px;color:var(--muted);line-height:1.5;margin-bottom:8px" id="sl-disclaimer">
-        From real 4H/1H/30M/5M history. These are where price has historically reacted — not a date-stamped forecast.
+        Real 4H/1H/30M/5M history. Stops cluster at old highs/lows — price is statistically drawn there, but this is not a timed forecast.
       </div>
-      <div style="font-size:8px;color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">RESISTANCE ABOVE</div>
+      <div id="sl-next-target" style="font-size:9px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:6px 8px;margin-bottom:8px;line-height:1.5">Building liquidity map...</div>
+      <div style="font-size:8px;color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">BUY-SIDE LIQUIDITY (stops above highs)</div>
       <div id="sl-resistance"><div style="font-size:9px;color:var(--muted)">Loading...</div></div>
-      <div style="font-size:8px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px">SUPPORT BELOW</div>
+      <div style="font-size:8px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px">SELL-SIDE LIQUIDITY (stops below lows)</div>
       <div id="sl-support"><div style="font-size:9px;color:var(--muted)">Loading...</div></div>
       <div style="font-size:8px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px">FIB EXTENSION ZONES (4H SWING)</div>
       <div id="sl-projection"><div style="font-size:9px;color:var(--muted)">Loading...</div></div>
@@ -332,8 +347,14 @@ const STATE = {
   vwapNum: 0, vwapDen: 0, vwap: 0,
   volMean: 0, volM2: 0, volN: 0,
   cvdBuy: 0, cvdSell: 0, cvdSession: 0,
+  cvdFastBuy: 0, cvdFastSell: 0, // decayed, recent-window CVD (for the liquidity magnet, not the session totals)
   ofiEma: 0,
   bidDepth: 0, askDepth: 0,
+  bidDepthPrev: 0, askDepthPrev: 0, depthPrevTime: 0,
+  bidRoC: 0, askRoC: 0, // EMA-smoothed rate of change of book depth, $ per second
+  liqBalance: 0, // (bidDepth - askDepth) + (cvdFastBuy - cvdFastSell), the "dynamic balance" variable
+  magnet: null, // { price, side, touches, tfs } - current liquidity magnet target
+  magnetStrength: 0, // 0-1, how decisively the imbalance points at the magnet
   spread: 0,
   sessionHigh: 0, sessionLow: Infinity,
   adScore: 0, zScore: 0,
@@ -375,6 +396,76 @@ function updateOFI(bidVol, askVol) {
 function computeADScore() {
   const total = STATE.cvdBuy + STATE.cvdSell;
   STATE.adScore = total === 0 ? 0 : (STATE.cvdBuy - STATE.cvdSell) / total;
+}
+
+// ── LIQUIDITY MAGNET MODEL ──────────────────────────────────────────────
+// Dynamic Balance = order-book imbalance (bid$ - ask$) + recent aggressive
+// flow (decayed CVD). Both terms are in $ notional so they combine
+// directly. RoC tracks HOW FAST each side of the book is being pulled or
+// added to - this is what makes the magnet swing immediately when a
+// market maker yanks a large limit order, instead of only reacting to
+// where price already is.
+const CVD_FAST_DECAY = 0.985;     // per-trade decay, recent-window CVD
+const ROC_EMA_ALPHA = 0.25;       // smoothing for depth rate-of-change
+const MAGNET_SEARCH_RADIUS = 0.08; // only consider liquidity within 8% of price
+
+function updateCvdFast(amount, isBuy) {
+  STATE.cvdFastBuy *= CVD_FAST_DECAY;
+  STATE.cvdFastSell *= CVD_FAST_DECAY;
+  if (isBuy) STATE.cvdFastBuy += amount; else STATE.cvdFastSell += amount;
+}
+
+function updateDepthRoC(now) {
+  if (STATE.depthPrevTime > 0) {
+    const dt = Math.max((now - STATE.depthPrevTime) / 1000, 0.05);
+    const bidInst = (STATE.bidDepth - STATE.bidDepthPrev) / dt;
+    const askInst = (STATE.askDepth - STATE.askDepthPrev) / dt;
+    STATE.bidRoC = STATE.bidRoC * (1 - ROC_EMA_ALPHA) + bidInst * ROC_EMA_ALPHA;
+    STATE.askRoC = STATE.askRoC * (1 - ROC_EMA_ALPHA) + askInst * ROC_EMA_ALPHA;
+  }
+  STATE.bidDepthPrev = STATE.bidDepth;
+  STATE.askDepthPrev = STATE.askDepth;
+  STATE.depthPrevTime = now;
+}
+
+function computeLiquidityMagnet() {
+  // Dynamic Balance: book imbalance + aggressive flow, both in $ notional.
+  STATE.liqBalance = (STATE.bidDepth - STATE.askDepth) + (STATE.cvdFastBuy - STATE.cvdFastSell);
+
+  // RoC term: a side being pulled fast (negative RoC on asks = offers
+  // yanked = path clearing upward) pushes the bias even if static depth
+  // hasn't fully reflected it yet.
+  const rocBias = STATE.bidRoC - STATE.askRoC; // ask shrinking faster -> positive -> bullish
+
+  const scale = Math.max(STATE.bidDepth + STATE.askDepth, 1e6);
+  const balanceTerm = Math.tanh(STATE.liqBalance / scale);
+  const rocTerm = Math.tanh(rocBias / (scale * 0.5));
+  const bias = balanceTerm * 0.65 + rocTerm * 0.35; // [-1, 1]
+
+  STATE.magnetStrength = Math.min(Math.abs(bias), 1);
+  const side = bias >= 0 ? 'up' : 'down';
+
+  if (!STATE.price || !SL_DATA.clusters.length) { STATE.magnet = null; return; }
+
+  const radius = STATE.price * MAGNET_SEARCH_RADIUS;
+  const candidates = SL_DATA.clusters.filter(c =>
+    side === 'up' ? (c.price > STATE.price && c.price < STATE.price + radius)
+                  : (c.price < STATE.price && c.price > STATE.price - radius)
+  );
+
+  if (!candidates.length) { STATE.magnet = null; return; }
+
+  // "Heaviest" cluster nearby: more timeframe confluence wins, distance is
+  // a tiebreaker, not a hard cutoff - a level three timeframes agree on is
+  // a stronger magnet than a closer level only one timeframe saw.
+  candidates.sort((a, b) => {
+    const distA = Math.abs(a.price - STATE.price), distB = Math.abs(b.price - STATE.price);
+    const weightA = a.tfs.length / (1 + distA / radius);
+    const weightB = b.tfs.length / (1 + distB / radius);
+    return weightB - weightA;
+  });
+
+  STATE.magnet = { ...candidates[0], side };
 }
 
 function computeTargets() {
@@ -559,47 +650,53 @@ function pushCvd(cvdVal) {
   cvdSeries.update({ time: t, value: cvdVal, color });
 }
 
-function updateProbabilityCone() {
+// Trajectory Vector — points from current price at the heaviest nearby
+// liquidity cluster, weighted by the live order-book imbalance + RoC. This
+// is NOT a timed forecast: the x-axis steps below are just a fixed visual
+// offset so the line is readable on the chart, not a claim about when
+// price arrives. If the magnet target changes (a market maker pulls a
+// wall, RoC flips), this line re-aims on the very next book update.
+function updateLiquidityVector() {
   const now = Date.now();
-  if (now - lastConeUpdate < 3000) return;
+  if (now - lastConeUpdate < 600) return; // light throttle, still feels real-time
   lastConeUpdate = now;
 
-  const { price, vwap, sessionHigh, sessionLow, adScore, ofiEma } = STATE;
-  if (!price || !vwap || sessionHigh <= sessionLow) return;
+  const { price } = STATE;
+  if (!price) return;
 
   const nowSec = Math.floor(Date.now() / 1000);
   const steps = 15;
-  const range = sessionHigh - sessionLow || price * 0.02;
-
-  const bias = adScore * 0.6 + ofiEma * 0.4;
-  const totalMove = range * 0.618 * bias;
-  const stepMove = totalMove / steps;
-
-  const baseSpread = range * 0.08;
-
   const anchorTime = currentCandleTime || Math.floor(nowSec / candleSec) * candleSec;
   const anchorPrice = currentCandle ? currentCandle.close : price;
 
-  const upper = [], lower = [], mid = [];
+  const ov = STATE.whalePredictionOverride;
+  const target = ov ? ov.target : (STATE.magnet ? STATE.magnet.price : null);
 
+  if (target == null) {
+    safeSetData(predictionSeries, []);
+    safeSetData(coneUpperSeries, []);
+    safeSetData(coneLowerSeries, []);
+    return;
+  }
+
+  // Cone width shrinks as magnetStrength rises - a decisive imbalance
+  // draws a tight, confident line; a weak/ambiguous one draws a wide,
+  // visibly uncertain band. The width itself is the honesty mechanism here.
+  const dist = Math.abs(target - anchorPrice);
+  const uncertainty = dist * (1 - STATE.magnetStrength) * 0.25;
+
+  const mid = [], upper = [], lower = [];
   for (let i = 0; i <= steps; i++) {
     const t = anchorTime + i * candleSec;
     const p = i / steps;
-    const midPrice = anchorPrice + stepMove * i;
-    const spread = baseSpread * Math.sqrt(p * 1.5 + 0.05);
-
+    const midPrice = anchorPrice + (target - anchorPrice) * p;
+    const spread = uncertainty * Math.sqrt(p + 0.05);
     mid.push({ time: t, value: midPrice });
     upper.push({ time: t, value: midPrice + spread });
     lower.push({ time: t, value: midPrice - spread });
   }
 
-  const ov = STATE.whalePredictionOverride;
-  const finalMid = ov ? mid.map((pt, i) => ({
-    time: pt.time,
-    value: anchorPrice + (ov.target - anchorPrice) * (i / steps)
-  })) : mid;
-
-  safeSetData(predictionSeries, finalMid);
+  safeSetData(predictionSeries, mid);
   safeSetData(coneUpperSeries, upper);
   safeSetData(coneLowerSeries, lower);
 
@@ -808,6 +905,38 @@ function renderBook() {
   $('ask-depth').textContent = fmtK(askDepth);
   const oEl=$('ofi-val'); oEl.textContent=ofiEma.toFixed(4); oEl.className='mval '+(ofiEma>0?'green':'red');
   const aEl=$('ad-score'); aEl.textContent=adScore.toFixed(3); aEl.className='mval '+(adScore>0?'green':'red');
+  renderLiquidityMagnet();
+}
+
+function renderLiquidityMagnet() {
+  const balEl = $('lm-balance');
+  balEl.textContent = fmtK(STATE.liqBalance);
+  balEl.className = 'mval ' + (STATE.liqBalance > 0 ? 'green' : 'red');
+
+  const strEl = $('lm-strength');
+  strEl.textContent = Math.round(STATE.magnetStrength * 100) + '%';
+  strEl.className = 'mval ' + (STATE.magnetStrength > 0.5 ? 'gold' : '');
+
+  const bidRocEl = $('lm-bid-roc');
+  bidRocEl.textContent = (STATE.bidRoC >= 0 ? '+' : '') + fmtK(STATE.bidRoC) + '/s';
+  const askRocEl = $('lm-ask-roc');
+  askRocEl.textContent = (STATE.askRoC >= 0 ? '+' : '') + fmtK(STATE.askRoC) + '/s';
+  // Ask depth shrinking fast (negative RoC) = offers pulled = path clearing up = visually flag it
+  askRocEl.style.color = STATE.askRoC < -50000 ? 'var(--gold)' : '';
+  bidRocEl.style.color = STATE.bidRoC < -50000 ? 'var(--gold)' : '';
+
+  const tgtEl = $('lm-target');
+  if (!STATE.magnet) {
+    tgtEl.innerHTML = 'No liquidity cluster in range — magnet flat.';
+  } else {
+    const m = STATE.magnet;
+    const distPct = ((m.price - STATE.price) / STATE.price * 100);
+    const dirWord = m.side === 'up' ? 'UP' : 'DOWN';
+    const dirColor = m.side === 'up' ? 'var(--green)' : 'var(--red)';
+    tgtEl.innerHTML = `Magnet pulling <b style="color:${dirColor}">${dirWord}</b> toward ` +
+      `<span class="mono" style="color:${dirColor}">${fmtPrice(m.price)}</span> ` +
+      `(${distPct >= 0 ? '+' : ''}${distPct.toFixed(2)}%) · confluence ×${m.touches} [${m.tfs.join(',')}]`;
+  }
 }
 
 function renderAlts() {
@@ -865,6 +994,9 @@ function connect() {
       STATE.bidDepth=bv; STATE.askDepth=av;
       STATE.spread = (data.asks[0]?parseFloat(data.asks[0][0]):0) - (data.bids[0]?parseFloat(data.bids[0][0]):0);
       updateOFI(bv, av);
+      updateDepthRoC(Date.now());
+      computeLiquidityMagnet();
+      updateLiquidityVector(); // re-aim the vector immediately - this is the "MM pulls a wall, line swings" requirement
       STATE._dirtyBook = true;
       scheduleBookRender();
       return;
@@ -887,6 +1019,7 @@ function connect() {
 
     if (isBuyerMaker) { STATE.cvdSell+=amount; STATE.cvdSession-=amount; }
     else              { STATE.cvdBuy+=amount;  STATE.cvdSession+=amount; }
+    updateCvdFast(amount, !isBuyerMaker);
 
     STATE.btcPrices.push(price);
     if (STATE.btcPrices.length > 300) STATE.btcPrices.shift();
@@ -910,7 +1043,8 @@ function connect() {
     pushVwap(STATE.vwap);
     pushCvd(STATE.cvdSession);
 
-    updateProbabilityCone();
+    computeLiquidityMagnet();
+    updateLiquidityVector();
 
     STATE._dirtyPrice = true;
     scheduleRender();
