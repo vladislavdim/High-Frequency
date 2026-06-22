@@ -350,9 +350,11 @@ const STATE = {
   cvdFastBuy: 0, cvdFastSell: 0, // decayed, recent-window CVD (for the liquidity magnet, not the session totals)
   ofiEma: 0,
   bidDepth: 0, askDepth: 0,
+  bidDepthEma: 0, askDepthEma: 0, // smoothed depth - raw 100ms snapshots are too noisy for direction
   bidDepthPrev: 0, askDepthPrev: 0, depthPrevTime: 0,
   bidRoC: 0, askRoC: 0, // EMA-smoothed rate of change of book depth, $ per second
   liqBalance: 0, // (bidDepth - askDepth) + (cvdFastBuy - cvdFastSell), the "dynamic balance" variable
+  magnetBiasEma: 0, magnetSide: null, // smoothed composite bias + hysteresis-locked direction
   magnet: null, // { price, side, touches, tfs } - current liquidity magnet target
   magnetStrength: 0, // 0-1, how decisively the imbalance points at the magnet
   spread: 0,
@@ -407,7 +409,13 @@ function computeADScore() {
 // where price already is.
 const CVD_FAST_DECAY = 0.985;     // per-trade decay, recent-window CVD
 const ROC_EMA_ALPHA = 0.25;       // smoothing for depth rate-of-change
+const DEPTH_EMA_ALPHA = 0.12;     // smoothing for raw book depth itself (kills 100ms quote-churn noise)
+const BIAS_EMA_ALPHA = 0.25;      // smoothing for the composite directional bias
+const MAGNET_FLIP_THRESHOLD = 0.12; // bias must clear this margin to flip side - this is what stops the flicker
+const MAGNET_RECOMPUTE_MS = 1000;   // re-pick target at most once a second; RoC/EMA still update every tick
 const MAGNET_SEARCH_RADIUS = 0.08; // only consider liquidity within 8% of price
+
+let lastMagnetCompute = 0;
 
 function updateCvdFast(amount, isBuy) {
   STATE.cvdFastBuy *= CVD_FAST_DECAY;
@@ -429,21 +437,41 @@ function updateDepthRoC(now) {
 }
 
 function computeLiquidityMagnet() {
-  // Dynamic Balance: book imbalance + aggressive flow, both in $ notional.
-  STATE.liqBalance = (STATE.bidDepth - STATE.askDepth) + (STATE.cvdFastBuy - STATE.cvdFastSell);
+  // Smooth the book depth itself. A raw 100ms snapshot of bid$/ask$ churns
+  // constantly from routine cancel-replace quoting that has nothing to do
+  // with institutional flow - feeding that straight into the direction
+  // decision is exactly what was making the vector flip every second.
+  STATE.bidDepthEma = STATE.bidDepthEma ? STATE.bidDepthEma * (1 - DEPTH_EMA_ALPHA) + STATE.bidDepth * DEPTH_EMA_ALPHA : STATE.bidDepth;
+  STATE.askDepthEma = STATE.askDepthEma ? STATE.askDepthEma * (1 - DEPTH_EMA_ALPHA) + STATE.askDepth * DEPTH_EMA_ALPHA : STATE.askDepth;
+
+  STATE.liqBalance = (STATE.bidDepthEma - STATE.askDepthEma) + (STATE.cvdFastBuy - STATE.cvdFastSell);
+
+  const now = Date.now();
+  if (now - lastMagnetCompute < MAGNET_RECOMPUTE_MS) return; // keep the existing target/side between recomputes
+  lastMagnetCompute = now;
 
   // RoC term: a side being pulled fast (negative RoC on asks = offers
   // yanked = path clearing upward) pushes the bias even if static depth
   // hasn't fully reflected it yet.
   const rocBias = STATE.bidRoC - STATE.askRoC; // ask shrinking faster -> positive -> bullish
 
-  const scale = Math.max(STATE.bidDepth + STATE.askDepth, 1e6);
+  const scale = Math.max(STATE.bidDepthEma + STATE.askDepthEma, 1e6);
   const balanceTerm = Math.tanh(STATE.liqBalance / scale);
   const rocTerm = Math.tanh(rocBias / (scale * 0.5));
-  const bias = balanceTerm * 0.65 + rocTerm * 0.35; // [-1, 1]
+  const rawBias = balanceTerm * 0.65 + rocTerm * 0.35; // [-1, 1]
 
-  STATE.magnetStrength = Math.min(Math.abs(bias), 1);
-  const side = bias >= 0 ? 'up' : 'down';
+  STATE.magnetBiasEma = STATE.magnetBiasEma
+    ? STATE.magnetBiasEma * (1 - BIAS_EMA_ALPHA) + rawBias * BIAS_EMA_ALPHA
+    : rawBias;
+  STATE.magnetStrength = Math.min(Math.abs(STATE.magnetBiasEma), 1);
+
+  // Hysteresis: the side only flips once the smoothed bias clearly clears
+  // the threshold in the new direction. Sitting near zero no longer
+  // toggles the arrow back and forth - it just holds the last real side.
+  let side = STATE.magnetSide || (STATE.magnetBiasEma >= 0 ? 'up' : 'down');
+  if (STATE.magnetBiasEma > MAGNET_FLIP_THRESHOLD) side = 'up';
+  else if (STATE.magnetBiasEma < -MAGNET_FLIP_THRESHOLD) side = 'down';
+  STATE.magnetSide = side;
 
   if (!STATE.price || !SL_DATA.clusters.length) { STATE.magnet = null; return; }
 
